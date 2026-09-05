@@ -442,3 +442,81 @@ export async function fetchManualEvidenceList(filters = {}, user = null) {
   return data;
 }
 
+/**
+ * 17. Fetch complete detailed platform activity datasets across all 8 sub-tabs
+ */
+export async function fetchPlatformActivityDetails(filters = {}, user = null) {
+  const headers = await getAuthHeaders(user);
+  const query = buildQueryParams(filters);
+  const res = await fetch(`${API_BASE_URL}/api/evidence/platform-activity/details${query}`, {
+    method: 'GET',
+    headers
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || !data.success) {
+    throw new Error(data.error || `Failed to fetch platform activity details (${res.status})`);
+  }
+  return data.data;
+}
+
+/**
+ * 18. Download CSV export for any Platform Activity tab
+ */
+export async function downloadPlatformActivityExport(tabType = 'overview', filters = {}, filename = null, user = null) {
+  const token = user?.idToken || user?.token || await getFirebaseIdToken(user);
+  const headers = {};
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  const query = buildQueryParams({ ...filters, tabType });
+  const res = await fetch(`${API_BASE_URL}/api/evidence/platform-activity/export${query}`, {
+    method: 'GET',
+    headers
+  });
+
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.error || `Failed to download platform activity CSV (${res.status})`);
+  }
+
+  const blob = await res.blob();
+  const downloadName = filename || `platform-activity-${tabType}-${new Date().toISOString().split('T')[0]}.csv`;
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = downloadName;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  window.URL.revokeObjectURL(url);
+}
+
+export default {
+  EVIDENCE_CATEGORIES,
+  EVIDENCE_STATUSES,
+  CONSENT_STATUS_OPTIONS,
+  formatUKDate,
+  fetchEvidenceList,
+  fetchEvidenceById,
+  createEvidence,
+  updateEvidence,
+  updateEvidenceStatus,
+  deleteEvidence,
+  deleteAllEvidence,
+  bulkDeleteEvidence,
+  uploadEvidenceAttachment,
+  deleteEvidenceAttachment,
+  downloadEvidenceAttachment,
+  generateAutomaticEvidence,
+  refreshAutomaticEvidence,
+  fetchAutomaticEvidenceList,
+  fetchAutomaticEvidenceById,
+  updateAutomaticEvidenceNotes,
+  downloadAutomaticEvidenceExport,
+  fetchManualEvidenceList,
+  fetchPlatformActivityDetails,
+  downloadPlatformActivityExport
+};
+

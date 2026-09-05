@@ -134,6 +134,8 @@ function AppContent() {
             <Route path="/certificates/:certificateId" element={<LearnerCertificateView />} />
             <Route path="/verify/:certificateNumber" element={<PublicCertificateVerify />} />
             <Route path="/verify" element={<PublicCertificateVerify />} />
+            <Route path="/verify-certificate/:certificateNumber" element={<PublicCertificateVerify />} />
+            <Route path="/verify-certificate" element={<PublicCertificateVerify />} />
             <Route path="/course-recommendations" element={<CourseRecommendations />} />
             <Route path="/courses/:courseId" element={<CourseOverview />} />
             <Route path="/courses/:courseId/learn" element={<CoursePlayer />} />

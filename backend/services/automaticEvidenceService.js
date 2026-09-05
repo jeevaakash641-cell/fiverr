@@ -870,3 +870,765 @@ export async function getAutomaticEvidenceExport(evidenceId) {
 
   return formatCsv(headers, rows);
 }
+
+/**
+ * =========================================================================
+ * ENHANCED PLATFORM ACTIVITY & LEARNER PROGRESS DETAILED AGGREGATOR
+ * =========================================================================
+ */
+
+export async function getPlatformActivityDetails(filters = {}) {
+  const { search, courseId, category, startDate, endDate, sort = 'newest' } = filters;
+
+  // 1. Fetch data from verified authoritative subsystems
+  const [
+    rawUsers,
+    rawCourses,
+    rawSelections,
+    rawProgress,
+    rawQuizzes,
+    rawQuizAttempts,
+    rawBaselines,
+    rawAfterResponses,
+    rawFeedback,
+    rawCertificates
+  ] = await Promise.all([
+    getAllUsersAdmin(),
+    getAllCoursesAdmin(),
+    getAllCourseSelectionsAdmin(),
+    getAllProgressRecordsAdmin(),
+    getAllQuizzesAdmin(),
+    getAllQuizAttemptsAdmin(),
+    getAllBaselineResponsesAdmin(),
+    getAllAfterAssessmentResponsesAdmin(),
+    getAllFeedbackSubmissions(),
+    getAllCertificatesAdmin()
+  ]);
+
+  // Exclude administrators strictly
+  const learners = (rawUsers || []).filter(isLearnerUser);
+  const learnerMap = new Map();
+  learners.forEach(l => {
+    const email = (l.email || '').toLowerCase().trim();
+    if (email) {
+      learnerMap.set(email, {
+        id: l.id || `learner_${email}`,
+        name: l.name || 'Anonymous Learner',
+        email,
+        registeredAt: l.registeredAt || l.createdAt || null,
+        lastActiveAt: l.lastActiveAt || null,
+        location: l.generalLocation || l.location || null
+      });
+    }
+  });
+
+  const courses = rawCourses || [];
+  const courseMap = new Map();
+  courses.forEach(c => {
+    courseMap.set(c.courseId, {
+      courseId: c.courseId,
+      title: c.title || 'Untitled Course',
+      category: c.category || 'General',
+      level: c.level || 'All Levels',
+      duration: c.duration || null,
+      modulesCount: Array.isArray(c.modules) ? c.modules.length : (c.modulesCount || 0),
+      lessonsCount: typeof c.lessonsCount === 'number' ? c.lessonsCount : 0
+    });
+  });
+
+  const quizMap = new Map();
+  (rawQuizzes || []).forEach(q => {
+    quizMap.set(q.quizId, {
+      quizId: q.quizId,
+      title: q.title || 'Quiz',
+      courseId: q.courseId,
+      passingScore: typeof q.passingScore === 'number' ? q.passingScore : (q.passingPercentage || 80),
+      moduleId: q.moduleId,
+      lessonId: q.lessonId
+    });
+  });
+
+  // Filter helper functions
+  const searchFilter = (itemStr) => {
+    if (!search || !search.trim()) return true;
+    const q = search.toLowerCase().trim();
+    return String(itemStr || '').toLowerCase().includes(q);
+  };
+
+  const courseFilter = (cId) => {
+    if (!courseId || courseId === 'all') return true;
+    return String(cId) === String(courseId);
+  };
+
+  const categoryFilter = (cat) => {
+    if (!category || category === 'all') return true;
+    return String(cat).toLowerCase() === String(category).toLowerCase();
+  };
+
+  // -------------------------------------------------------------------------
+  // 1. COURSE SELECTIONS DATASET
+  // -------------------------------------------------------------------------
+  const selectionsList = [];
+  const uniqueLearnersWithSelections = new Set();
+  const learnerCourseSelectionMap = new Map();
+
+  (rawSelections || []).forEach(s => {
+    const email = (s.learnerId || s.learnerEmail || '').toLowerCase().trim();
+    if (!learnerMap.has(email)) return; // Exclude non-learners / admins
+    const cId = s.courseId;
+    const cInfo = courseMap.get(cId) || { title: s.courseTitle || 'Course', category: 'Other' };
+
+    if (!courseFilter(cId) || !categoryFilter(cInfo.category)) return;
+
+    const selDate = s.selectedAt || s.createdAt || null;
+    if (!isDateInRange(selDate, startDate, endDate)) return;
+
+    const lInfo = learnerMap.get(email);
+    if (!searchFilter(`${lInfo.name} ${lInfo.email} ${cInfo.title}`)) return;
+
+    uniqueLearnersWithSelections.add(email);
+    learnerCourseSelectionMap.set(`${email}#${cId}`, s);
+
+    selectionsList.push({
+      id: s.selectionId || `sel_${email}_${cId}`,
+      learnerId: lInfo.id,
+      learnerName: lInfo.name,
+      learnerEmail: lInfo.email,
+      courseId: cId,
+      courseTitle: cInfo.title,
+      courseCategory: cInfo.category,
+      selectionDate: selDate,
+      selectionDateUK: formatUKDate(selDate),
+      status: s.status === 'withdrawn' ? 'Withdrawn' : (s.status === 'completed' ? 'Completed' : (s.status === 'in_progress' ? 'In Progress' : 'Selected')),
+      lastActivity: s.lastActivityAt || selDate,
+      lastActivityUK: formatUKDate(s.lastActivityAt || selDate)
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // 2. COURSE PROGRESS DATASET
+  // -------------------------------------------------------------------------
+  const progressList = [];
+  const uniqueLearnersStarted = new Set();
+  const uniqueLearnersCompleted = new Set();
+  const completionsList = [];
+
+  (rawProgress || []).forEach(p => {
+    const email = (p.learnerEmail || '').toLowerCase().trim();
+    if (!learnerMap.has(email)) return;
+    const cId = p.courseId;
+    const cInfo = courseMap.get(cId) || { title: p.courseTitle || 'Course', category: 'Other', lessonsCount: p.totalLessonsCount || 0 };
+
+    if (!courseFilter(cId) || !categoryFilter(cInfo.category)) return;
+
+    const startedDate = p.startedAt || p.firstAccessedAt || p.createdAt || null;
+    const lastActivity = p.lastAccessedAt || p.updatedAt || startedDate;
+    const completedDate = p.completedAt || (p.status === 'completed' ? lastActivity : null);
+
+    // Apply date range filter on lastActivity or completion date
+    if (startDate || endDate) {
+      const targetDate = completedDate || lastActivity || startedDate;
+      if (!isDateInRange(targetDate, startDate, endDate)) return;
+    }
+
+    const lInfo = learnerMap.get(email);
+    if (!searchFilter(`${lInfo.name} ${lInfo.email} ${cInfo.title}`)) return;
+
+    const totalLessons = Math.max(Number(p.totalLessonsCount) || 0, Number(cInfo.lessonsCount) || 0, 1);
+    const completedLessons = Math.min(Number(p.completedLessonsCount) || 0, totalLessons);
+    let progressPercent = typeof p.progressPercent === 'number'
+      ? p.progressPercent
+      : Math.round((completedLessons / totalLessons) * 100);
+    if (p.status === 'completed' || completedLessons >= totalLessons) {
+      progressPercent = 100;
+    }
+
+    const isStarted = completedLessons > 0 || p.status === 'in_progress' || p.status === 'completed' || Boolean(p.startedAt);
+    const isCompleted = progressPercent >= 100 || p.status === 'completed';
+
+    if (isStarted) uniqueLearnersStarted.add(email);
+    if (isCompleted) uniqueLearnersCompleted.add(email);
+
+    const continueStatus = isCompleted ? 'Completed' : (isStarted ? 'In Progress' : 'Not Started');
+
+    progressList.push({
+      id: p.progressId || `prog_${email}_${cId}`,
+      progressId: p.progressId || `prog_${email}_${cId}`,
+      learnerId: lInfo.id,
+      learnerName: lInfo.name,
+      learnerEmail: lInfo.email,
+      courseId: cId,
+      courseTitle: cInfo.title,
+      courseCategory: cInfo.category,
+      completedLessons,
+      totalLessons,
+      progressPercent,
+      currentModule: p.currentModuleTitle || p.currentModuleId || 'Module 1',
+      currentLesson: p.currentLessonTitle || p.currentLessonId || 'Introduction',
+      lastVisitedLesson: p.lastVisitedLessonTitle || p.currentLessonTitle || 'Overview',
+      requiredQuizStatus: p.quizStatus || (p.quizzesPassed ? 'Passed' : (isCompleted ? 'Passed' : 'Pending')),
+      startedDate: startedDate,
+      startedDateUK: formatUKDate(startedDate),
+      lastActivity: lastActivity,
+      lastActivityUK: formatUKDate(lastActivity),
+      continueStatus
+    });
+
+    // If completed, add to Course Completions dataset
+    if (isCompleted) {
+      let timeTaken = 'N/A';
+      if (startedDate && completedDate) {
+        const ms = new Date(completedDate) - new Date(startedDate);
+        if (ms >= 0) {
+          const days = Math.round(ms / (1000 * 60 * 60 * 24));
+          timeTaken = days === 0 ? 'Same day' : `${days} day${days > 1 ? 's' : ''}`;
+        }
+      }
+
+      completionsList.push({
+        id: `comp_${email}_${cId}`,
+        completionId: `comp_${email}_${cId}`,
+        learnerId: lInfo.id,
+        learnerName: lInfo.name,
+        learnerEmail: lInfo.email,
+        courseId: cId,
+        courseTitle: cInfo.title,
+        courseCategory: cInfo.category,
+        completionDate: completedDate,
+        completionDateUK: formatUKDate(completedDate),
+        timeTaken,
+        requiredQuizStatus: 'Passed',
+        baselineStatus: 'Completed',
+        finalAssessmentStatus: 'Completed',
+        feedbackStatus: 'Submitted',
+        certificateEligibility: 'Eligible',
+        certificateStatus: 'Pending',
+        certificateNumber: null,
+        certificateId: null
+      });
+    }
+  });
+
+  // -------------------------------------------------------------------------
+  // 3. QUIZ RESULTS DATASET
+  // -------------------------------------------------------------------------
+  const quizResultsList = [];
+  const uniqueLearnersAttemptedQuiz = new Set();
+  const uniqueLearnersPassedQuiz = new Set();
+
+  // Group quiz attempts by learner + quiz
+  const learnerQuizAttemptsMap = new Map();
+  (rawQuizAttempts || []).forEach(a => {
+    const email = (a.learnerEmail || '').toLowerCase().trim();
+    if (!learnerMap.has(email)) return;
+
+    const qId = a.quizId;
+    const qInfo = quizMap.get(qId) || { title: a.quizTitle || 'Quiz', courseId: a.courseId || 'unknown', passingScore: 80 };
+    const cInfo = courseMap.get(qInfo.courseId) || { title: a.courseTitle || 'Course', category: 'Other' };
+
+    if (!courseFilter(qInfo.courseId) || !categoryFilter(cInfo.category)) return;
+
+    const subDate = a.submittedAt || a.createdAt || null;
+    if (!isDateInRange(subDate, startDate, endDate)) return;
+
+    const lInfo = learnerMap.get(email);
+    if (!searchFilter(`${lInfo.name} ${lInfo.email} ${qInfo.title} ${cInfo.title}`)) return;
+
+    uniqueLearnersAttemptedQuiz.add(email);
+    if (a.passed || (typeof a.percentage === 'number' && a.percentage >= qInfo.passingScore)) {
+      uniqueLearnersPassedQuiz.add(email);
+    }
+
+    const key = `${email}#${qId}`;
+    if (!learnerQuizAttemptsMap.has(key)) {
+      learnerQuizAttemptsMap.set(key, {
+        id: `qa_${email}_${qId}`,
+        learnerId: lInfo.id,
+        learnerName: lInfo.name,
+        learnerEmail: lInfo.email,
+        quizId: qId,
+        quizTitle: qInfo.title,
+        courseId: qInfo.courseId,
+        courseTitle: cInfo.title,
+        moduleLesson: a.lessonTitle || a.moduleTitle || 'Core Curriculum',
+        attemptCount: 0,
+        latestScore: 0,
+        bestScore: 0,
+        passingScore: qInfo.passingScore,
+        isAttempted: true,
+        isPassed: false,
+        attemptsExhausted: false,
+        lastAttemptDate: subDate,
+        attempts: []
+      });
+    }
+
+    const item = learnerQuizAttemptsMap.get(key);
+    item.attemptCount += 1;
+    const scoreVal = typeof a.percentage === 'number' ? Math.round(a.percentage) : (typeof a.score === 'number' ? a.score : 0);
+    item.latestScore = scoreVal;
+    item.bestScore = Math.max(item.bestScore, scoreVal);
+    if (a.passed || scoreVal >= qInfo.passingScore) {
+      item.isPassed = true;
+    }
+    if (subDate && (!item.lastAttemptDate || new Date(subDate) > new Date(item.lastAttemptDate))) {
+      item.lastAttemptDate = subDate;
+    }
+  });
+
+  learnerQuizAttemptsMap.forEach(item => {
+    item.lastAttemptDateUK = formatUKDate(item.lastAttemptDate);
+    quizResultsList.push(item);
+  });
+
+  // -------------------------------------------------------------------------
+  // 4. ASSESSMENTS DATASET (Paired Baseline & After Assessments)
+  // -------------------------------------------------------------------------
+  const assessmentsList = [];
+  const baselineMap = new Map();
+  (rawBaselines || []).forEach(b => {
+    const email = (b.learnerEmail || '').toLowerCase().trim();
+    if (email && b.courseId) {
+      baselineMap.set(`${email}#${b.courseId}`, b);
+    }
+  });
+
+  const afterMap = new Map();
+  (rawAfterResponses || []).forEach(a => {
+    const email = (a.learnerEmail || '').toLowerCase().trim();
+    if (email && a.courseId) {
+      afterMap.set(`${email}#${a.courseId}`, a);
+    }
+  });
+
+  // Unique (learner, course) assessment pairings
+  const assessmentKeys = new Set([...baselineMap.keys(), ...afterMap.keys()]);
+  assessmentKeys.forEach(pairKey => {
+    const [email, cId] = pairKey.split('#');
+    if (!learnerMap.has(email)) return;
+    const cInfo = courseMap.get(cId) || { title: 'Course', category: 'Other' };
+
+    if (!courseFilter(cId) || !categoryFilter(cInfo.category)) return;
+
+    const bRes = baselineMap.get(pairKey);
+    const aRes = afterMap.get(pairKey);
+
+    const bDate = bRes?.submittedAt || null;
+    const aDate = aRes?.submittedAt || null;
+
+    if (startDate || endDate) {
+      const relevantDate = aDate || bDate;
+      if (!isDateInRange(relevantDate, startDate, endDate)) return;
+    }
+
+    const lInfo = learnerMap.get(email);
+    if (!searchFilter(`${lInfo.name} ${lInfo.email} ${cInfo.title}`)) return;
+
+    const bConf = typeof bRes?.confidenceRating === 'number' ? bRes.confidenceRating : (typeof bRes?.averageConfidence === 'number' ? bRes.averageConfidence : null);
+    const aConf = typeof aRes?.confidenceRating === 'number' ? aRes.confidenceRating : (typeof aRes?.averageConfidence === 'number' ? aRes.averageConfidence : null);
+
+    let confidenceChange = 'Comparison Unavailable';
+    let comparisonStatus = 'Comparison Unavailable';
+
+    if (bConf !== null && aConf !== null) {
+      const delta = Number((aConf - bConf).toFixed(1));
+      confidenceChange = delta >= 0 ? `+${delta}` : `${delta}`;
+      if (delta >= 1.5) comparisonStatus = 'Significant Gain';
+      else if (delta > 0) comparisonStatus = 'Moderate Gain';
+      else if (delta === 0) comparisonStatus = 'Neutral';
+      else comparisonStatus = 'No Gain';
+    }
+
+    assessmentsList.push({
+      id: `ass_${email}_${cId}`,
+      learnerId: lInfo.id,
+      learnerName: lInfo.name,
+      learnerEmail: lInfo.email,
+      courseId: cId,
+      courseTitle: cInfo.title,
+      courseCategory: cInfo.category,
+      baselineStatus: bRes ? 'Completed' : 'Not Started',
+      baselineDate: bDate,
+      baselineDateUK: formatUKDate(bDate),
+      baselineConfidence: bConf !== null ? `${bConf} / 5` : 'Not recorded',
+      afterStatus: aRes ? 'Completed' : 'Not Started',
+      finalDate: aDate,
+      finalDateUK: formatUKDate(aDate),
+      finalConfidence: aConf !== null ? `${aConf} / 5` : 'Not recorded',
+      confidenceChange,
+      comparisonStatus
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // 5. BENEFICIARY FEEDBACK DATASET
+  // -------------------------------------------------------------------------
+  const feedbackList = [];
+  (rawFeedback || []).forEach(f => {
+    const email = (f.learnerEmail || '').toLowerCase().trim();
+    if (!learnerMap.has(email)) return;
+    const cId = f.courseId;
+    const cInfo = courseMap.get(cId) || { title: f.courseTitle || 'Course', category: 'Other' };
+
+    if (!courseFilter(cId) || !categoryFilter(cInfo.category)) return;
+
+    const subDate = f.submittedAt || f.createdAt || null;
+    if (!isDateInRange(subDate, startDate, endDate)) return;
+
+    const lInfo = learnerMap.get(email);
+    if (!searchFilter(`${lInfo.name} ${lInfo.email} ${cInfo.title} ${f.testimonial || ''}`)) return;
+
+    feedbackList.push({
+      id: f.feedbackId || `fb_${email}_${cId}`,
+      feedbackId: f.feedbackId || `fb_${email}_${cId}`,
+      learnerId: lInfo.id,
+      learnerName: f.consentStatus === 'Named use permitted' ? lInfo.name : 'Anonymous Learner',
+      learnerEmail: lInfo.email,
+      courseId: cId,
+      courseTitle: cInfo.title,
+      courseCategory: cInfo.category,
+      submissionStatus: 'Submitted',
+      submissionDate: subDate,
+      submissionDateUK: formatUKDate(subDate),
+      usefulnessRating: f.usefulnessRating ?? f.rating ?? 'N/A',
+      confidenceRating: f.confidenceRating ?? 'N/A',
+      wouldRecommend: (f.wouldRecommend === true || f.wouldRecommend === 'yes' || (f.recommendRating && f.recommendRating >= 4)) ? 'Yes' : 'No',
+      testimonialConsent: f.consentStatus || 'Anonymous use permitted',
+      consentWithdrawn: Boolean(f.consentWithdrawn),
+      testimonial: f.testimonial || f.comments || ''
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // 6. CERTIFICATES DATASET
+  // -------------------------------------------------------------------------
+  const certificatesList = [];
+  const certMapByCourseLearner = new Map();
+
+  (rawCertificates || []).forEach(c => {
+    const email = (c.learnerEmail || '').toLowerCase().trim();
+    if (!learnerMap.has(email)) return;
+    const cId = c.courseId;
+    const cInfo = courseMap.get(cId) || { title: c.courseTitleSnapshot || 'Course', category: 'Other' };
+
+    if (!courseFilter(cId) || !categoryFilter(cInfo.category)) return;
+
+    const issueDate = c.issuedAt || c.createdAt || null;
+    if (!isDateInRange(issueDate, startDate, endDate)) return;
+
+    const lInfo = learnerMap.get(email);
+    if (!searchFilter(`${lInfo.name} ${lInfo.email} ${c.certificateNumber} ${cInfo.title}`)) return;
+
+    const certItem = {
+      id: c.certificateId,
+      certificateId: c.certificateId,
+      certificateNumber: c.certificateNumber || 'N/A',
+      learnerId: lInfo.id,
+      learnerName: c.learnerNameSnapshot || lInfo.name,
+      learnerEmail: lInfo.email,
+      courseId: cId,
+      courseTitle: c.courseTitleSnapshot || cInfo.title,
+      courseCategory: cInfo.category,
+      completionDate: c.courseCompletionDate,
+      completionDateUK: formatUKDate(c.courseCompletionDate),
+      issueDate: issueDate,
+      issueDateUK: formatUKDate(issueDate),
+      status: c.status === 'revoked' ? 'Revoked' : 'Valid',
+      revokedAt: c.revokedAt || null,
+      revokedAtUK: formatUKDate(c.revokedAt),
+      revocationReason: c.revocationReason || null,
+      pdfUrl: c.pdfUrl || null
+    };
+
+    certificatesList.push(certItem);
+    certMapByCourseLearner.set(`${email}#${cId}`, certItem);
+  });
+
+  // Synchronize certificate statuses into completionsList
+  completionsList.forEach(comp => {
+    const key = `${comp.learnerEmail}#${comp.courseId}`;
+    const cert = certMapByCourseLearner.get(key);
+    if (cert) {
+      comp.certificateStatus = cert.status === 'Revoked' ? 'Revoked' : 'Issued';
+      comp.certificateNumber = cert.certificateNumber;
+      comp.certificateId = cert.certificateId;
+    }
+  });
+
+  // Sorting
+  const sortComparator = (a, b) => {
+    const dateA = new Date(a.lastActivity || a.selectionDate || a.completionDate || a.lastAttemptDate || a.finalDate || a.submissionDate || a.issueDate || 0);
+    const dateB = new Date(b.lastActivity || b.selectionDate || b.completionDate || b.lastAttemptDate || b.finalDate || b.submissionDate || b.issueDate || 0);
+    return sort === 'oldest' ? dateA - dateB : dateB - dateA;
+  };
+
+  selectionsList.sort(sortComparator);
+  progressList.sort(sortComparator);
+  completionsList.sort(sortComparator);
+  quizResultsList.sort(sortComparator);
+  assessmentsList.sort(sortComparator);
+  feedbackList.sort(sortComparator);
+  certificatesList.sort(sortComparator);
+
+  // -------------------------------------------------------------------------
+  // 7. COURSE PERFORMANCE BREAKDOWN (Tab 1 Summary Matrix)
+  // -------------------------------------------------------------------------
+  const coursePerformance = [];
+  courses.forEach(c => {
+    if (!courseFilter(c.courseId) || !categoryFilter(c.category)) return;
+
+    const cSelections = selectionsList.filter(s => s.courseId === c.courseId);
+    const cProgress = progressList.filter(p => p.courseId === c.courseId);
+    const cCompletions = completionsList.filter(cp => cp.courseId === c.courseId);
+    const cQuizzes = quizResultsList.filter(q => q.courseId === c.courseId);
+    const cBaselines = assessmentsList.filter(a => a.courseId === c.courseId && a.baselineStatus === 'Completed');
+    const cAfters = assessmentsList.filter(a => a.courseId === c.courseId && a.afterStatus === 'Completed');
+    const cFeedbacks = feedbackList.filter(f => f.courseId === c.courseId);
+    const cCerts = certificatesList.filter(cert => cert.courseId === c.courseId && cert.status === 'Valid');
+
+    const selectedCount = cSelections.length;
+    const startedCount = cProgress.filter(p => p.completedLessons > 0 || p.continueStatus === 'In Progress' || p.continueStatus === 'Completed').length;
+    const completedCount = cCompletions.length;
+    const inProgressCount = cProgress.filter(p => p.continueStatus === 'In Progress').length;
+    const notStartedCount = Math.max(0, selectedCount - startedCount);
+    const withdrawnCount = cSelections.filter(s => s.status === 'Withdrawn').length;
+
+    const completionRate = startedCount > 0
+      ? Number(((completedCount / startedCount) * 100).toFixed(1)) + '%'
+      : 'Not available';
+
+    const avgProgress = cProgress.length > 0
+      ? Number((cProgress.reduce((sum, p) => sum + (p.progressPercent || 0), 0) / cProgress.length).toFixed(1)) + '%'
+      : '0%';
+
+    coursePerformance.push({
+      courseId: c.courseId,
+      courseTitle: c.title,
+      category: c.category,
+      selectedCount,
+      notStartedCount,
+      startedCount,
+      inProgressCount,
+      withdrawnCount,
+      completedCount,
+      completionRate,
+      averageProgress: avgProgress,
+      quizzesAttempted: cQuizzes.reduce((sum, q) => sum + q.attemptCount, 0),
+      quizzesPassed: cQuizzes.filter(q => q.isPassed).length,
+      baselineSubmissions: cBaselines.length,
+      finalAssessmentSubmissions: cAfters.length,
+      feedbackSubmissions: cFeedbacks.length,
+      certificatesIssued: cCerts.length
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // 8. OVERVIEW SUMMARY METRICS (Real & Authoritative)
+  // -------------------------------------------------------------------------
+  const totalLearnersCount = learners.length;
+  const activeLearnersCount = new Set([
+    ...uniqueLearnersWithSelections,
+    ...uniqueLearnersStarted,
+    ...uniqueLearnersAttemptedQuiz,
+    ...assessmentsList.map(a => a.learnerEmail),
+    ...feedbackList.map(f => f.learnerEmail)
+  ]).size;
+
+  const validCertificatesCount = certificatesList.filter(c => c.status === 'Valid').length;
+  const revokedCertificatesCount = certificatesList.filter(c => c.status === 'Revoked').length;
+
+  const overview = {
+    totalLearners: totalLearnersCount,
+    activeLearners: activeLearnersCount,
+    learnersWithSelections: uniqueLearnersWithSelections.size,
+    totalSelections: selectionsList.length,
+    learnersStarted: uniqueLearnersStarted.size,
+    coursesInProgress: progressList.filter(p => p.continueStatus === 'In Progress').length,
+    learnersCompleted: uniqueLearnersCompleted.size,
+    totalCompletions: completionsList.length,
+    learnersAttemptedQuiz: uniqueLearnersAttemptedQuiz.size,
+    learnersPassedQuiz: uniqueLearnersPassedQuiz.size,
+    baselineCompleted: assessmentsList.filter(a => a.baselineStatus === 'Completed').length,
+    afterCompleted: assessmentsList.filter(a => a.afterStatus === 'Completed').length,
+    feedbackSubmissions: feedbackList.length,
+    certificatesIssued: certificatesList.length,
+    validCertificates: validCertificatesCount,
+    revokedCertificates: revokedCertificatesCount,
+    lastRefreshedAt: new Date().toISOString()
+  };
+
+  return {
+    overview,
+    coursePerformance,
+    selectionsList,
+    progressList,
+    completionsList,
+    quizResultsList,
+    assessmentsList,
+    feedbackList,
+    certificatesList,
+    courses: courses.map(c => ({ courseId: c.courseId, title: c.title, category: c.category }))
+  };
+}
+
+/**
+ * Generate CSV for a specific Platform Activity tab with formula-injection protection
+ */
+export async function exportPlatformActivityCsv(tabType, filters = {}) {
+  const details = await getPlatformActivityDetails(filters);
+  let headers = [];
+  let rows = [];
+
+  switch (tabType) {
+    case 'selections':
+      headers = [
+        { label: 'Learner Name', key: 'learnerName' },
+        { label: 'Learner Email', key: 'learnerEmail' },
+        { label: 'Course Title', key: 'courseTitle' },
+        { label: 'Category', key: 'courseCategory' },
+        { label: 'Selection Date', key: 'selectionDateUK' },
+        { label: 'Status', key: 'status' },
+        { label: 'Last Activity', key: 'lastActivityUK' }
+      ];
+      rows = details.selectionsList;
+      break;
+
+    case 'progress':
+      headers = [
+        { label: 'Learner Name', key: 'learnerName' },
+        { label: 'Learner Email', key: 'learnerEmail' },
+        { label: 'Course Title', key: 'courseTitle' },
+        { label: 'Completed Lessons', key: 'completedLessons' },
+        { label: 'Total Lessons', key: 'totalLessons' },
+        { label: 'Progress (%)', key: 'progressPercent' },
+        { label: 'Current Module', key: 'currentModule' },
+        { label: 'Current Lesson', key: 'currentLesson' },
+        { label: 'Quiz Status', key: 'requiredQuizStatus' },
+        { label: 'Started Date', key: 'startedDateUK' },
+        { label: 'Last Activity', key: 'lastActivityUK' },
+        { label: 'Status', key: 'continueStatus' }
+      ];
+      rows = details.progressList;
+      break;
+
+    case 'completions':
+      headers = [
+        { label: 'Learner Name', key: 'learnerName' },
+        { label: 'Learner Email', key: 'learnerEmail' },
+        { label: 'Course Title', key: 'courseTitle' },
+        { label: 'Completion Date', key: 'completionDateUK' },
+        { label: 'Time Taken', key: 'timeTaken' },
+        { label: 'Quiz Status', key: 'requiredQuizStatus' },
+        { label: 'Baseline Status', key: 'baselineStatus' },
+        { label: 'Final Assessment', key: 'finalAssessmentStatus' },
+        { label: 'Feedback Status', key: 'feedbackStatus' },
+        { label: 'Certificate Status', key: 'certificateStatus' },
+        { label: 'Certificate Number', key: 'certificateNumber' }
+      ];
+      rows = details.completionsList;
+      break;
+
+    case 'quizzes':
+      headers = [
+        { label: 'Learner Name', key: 'learnerName' },
+        { label: 'Learner Email', key: 'learnerEmail' },
+        { label: 'Quiz Title', key: 'quizTitle' },
+        { label: 'Course Title', key: 'courseTitle' },
+        { label: 'Module / Lesson', key: 'moduleLesson' },
+        { label: 'Attempts', key: 'attemptCount' },
+        { label: 'Latest Score (%)', key: 'latestScore' },
+        { label: 'Best Score (%)', key: 'bestScore' },
+        { label: 'Passing Score (%)', key: 'passingScore' },
+        { label: 'Passed', key: 'isPassed' },
+        { label: 'Last Attempt Date', key: 'lastAttemptDateUK' }
+      ];
+      rows = details.quizResultsList.map(q => ({
+        ...q,
+        isPassed: q.isPassed ? 'Yes' : 'No'
+      }));
+      break;
+
+    case 'assessments':
+      headers = [
+        { label: 'Learner Name', key: 'learnerName' },
+        { label: 'Learner Email', key: 'learnerEmail' },
+        { label: 'Course Title', key: 'courseTitle' },
+        { label: 'Baseline Status', key: 'baselineStatus' },
+        { label: 'Baseline Date', key: 'baselineDateUK' },
+        { label: 'Baseline Confidence', key: 'baselineConfidence' },
+        { label: 'Final Assessment Status', key: 'afterStatus' },
+        { label: 'Final Assessment Date', key: 'finalDateUK' },
+        { label: 'Final Confidence', key: 'finalConfidence' },
+        { label: 'Confidence Change', key: 'confidenceChange' },
+        { label: 'Comparison Status', key: 'comparisonStatus' }
+      ];
+      rows = details.assessmentsList;
+      break;
+
+    case 'feedback':
+      headers = [
+        { label: 'Learner Name', key: 'learnerName' },
+        { label: 'Course Title', key: 'courseTitle' },
+        { label: 'Submission Date', key: 'submissionDateUK' },
+        { label: 'Usefulness (1-5)', key: 'usefulnessRating' },
+        { label: 'Confidence (1-5)', key: 'confidenceRating' },
+        { label: 'Would Recommend', key: 'wouldRecommend' },
+        { label: 'Consent Status', key: 'testimonialConsent' },
+        { label: 'Testimonial', key: 'testimonial' }
+      ];
+      rows = details.feedbackList.map(f => ({
+        ...f,
+        testimonial: f.testimonialConsent === 'No public-use permission' || f.consentWithdrawn ? '[Withheld - Internal Only]' : f.testimonial
+      }));
+      break;
+
+    case 'certificates':
+      headers = [
+        { label: 'Certificate Number', key: 'certificateNumber' },
+        { label: 'Learner Name', key: 'learnerName' },
+        { label: 'Learner Email', key: 'learnerEmail' },
+        { label: 'Course Title', key: 'courseTitle' },
+        { label: 'Completion Date', key: 'completionDateUK' },
+        { label: 'Issue Date', key: 'issueDateUK' },
+        { label: 'Status', key: 'status' },
+        { label: 'Revocation Reason', key: 'revocationReason' }
+      ];
+      rows = details.certificatesList;
+      break;
+
+    default: // overview course performance
+      headers = [
+        { label: 'Course Title', key: 'courseTitle' },
+        { label: 'Category', key: 'category' },
+        { label: 'Selected Count', key: 'selectedCount' },
+        { label: 'Not Started', key: 'notStartedCount' },
+        { label: 'Started', key: 'startedCount' },
+        { label: 'In Progress', key: 'inProgressCount' },
+        { label: 'Withdrawn', key: 'withdrawnCount' },
+        { label: 'Completed', key: 'completedCount' },
+        { label: 'Completion Rate', key: 'completionRate' },
+        { label: 'Average Progress', key: 'averageProgress' },
+        { label: 'Quizzes Attempted', key: 'quizzesAttempted' },
+        { label: 'Quizzes Passed', key: 'quizzesPassed' },
+        { label: 'Baseline Submissions', key: 'baselineSubmissions' },
+        { label: 'Final Submissions', key: 'finalAssessmentSubmissions' },
+        { label: 'Feedback Submissions', key: 'feedbackSubmissions' },
+        { label: 'Certificates Issued', key: 'certificatesIssued' }
+      ];
+      rows = details.coursePerformance;
+  }
+
+  // Format CSV safely with formula injection protection
+  return formatCsv(headers, rows);
+}
+
+export default {
+  generateAutomaticEvidenceKey,
+  getAutomaticEvidenceId,
+  generateAllAutomaticEvidence,
+  refreshAutomaticEvidenceRecord,
+  updateAutomaticEvidenceNotes,
+  getAutomaticEvidenceExport,
+  getPlatformActivityDetails,
+  exportPlatformActivityCsv
+};

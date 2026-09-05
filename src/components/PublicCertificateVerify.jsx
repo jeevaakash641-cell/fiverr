@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, useSearchParams, Link } from 'react-router-dom';
 import { verifyCertificatePublic } from '../services/certificateService';
 import {
   ShieldCheck, ShieldAlert, Search, RefreshCw, Award,
@@ -8,8 +8,11 @@ import {
 
 const PublicCertificateVerify = () => {
   const { certificateNumber: paramCertNum } = useParams();
+  const [searchParams] = useSearchParams();
+  const queryCertNum = searchParams.get('number') || searchParams.get('certificateNumber') || searchParams.get('cert') || '';
 
-  const [inputNum, setInputNum] = useState(paramCertNum || '');
+  const initialCertNum = paramCertNum || queryCertNum || '';
+  const [inputNum, setInputNum] = useState(initialCertNum);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
@@ -30,11 +33,12 @@ const PublicCertificateVerify = () => {
   };
 
   useEffect(() => {
-    if (paramCertNum) {
-      setInputNum(paramCertNum);
-      doVerify(paramCertNum);
+    const target = paramCertNum || queryCertNum;
+    if (target) {
+      setInputNum(target);
+      doVerify(target);
     }
-  }, [paramCertNum]);
+  }, [paramCertNum, queryCertNum]);
 
   const handleSubmit = (e) => {
     e.preventDefault();

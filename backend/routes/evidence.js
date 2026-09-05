@@ -23,7 +23,9 @@ import {
   generateAllAutomaticEvidence,
   refreshAutomaticEvidenceRecord,
   updateAutomaticEvidenceNotes,
-  getAutomaticEvidenceExport
+  getAutomaticEvidenceExport,
+  getPlatformActivityDetails,
+  exportPlatformActivityCsv
 } from '../services/automaticEvidenceService.js';
 import { recordAdminAction, AuditCategories } from '../services/adminAuditService.js';
 
@@ -122,6 +124,55 @@ router.get('/automatic', async (req, res) => {
     });
   } catch (err) {
     console.error('GET /api/evidence/automatic error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * GET /api/evidence/platform-activity/details
+ * Retrieve complete detailed platform activity datasets across all 8 tabs
+ */
+router.get('/platform-activity/details', async (req, res) => {
+  try {
+    const data = await getPlatformActivityDetails(req.query || {});
+    res.status(200).json({
+      success: true,
+      data
+    });
+  } catch (err) {
+    console.error('GET /api/evidence/platform-activity/details error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * GET /api/evidence/platform-activity/export
+ * Download CSV export for any Platform Activity tab
+ */
+router.get('/platform-activity/export', async (req, res) => {
+  try {
+    const { tabType = 'overview', ...filters } = req.query;
+    const csvContent = await exportPlatformActivityCsv(tabType, filters);
+    const filename = `platform-activity-${tabType}-${new Date().toISOString().split('T')[0]}.csv`;
+
+    await recordAdminAction({
+      admin: req.user,
+      action: 'Exported Platform Activity CSV',
+      category: AuditCategories.EVIDENCE_LIBRARY,
+      targetType: 'PlatformActivityExport',
+      targetId: tabType,
+      targetName: `Platform Activity Export (${tabType})`,
+      result: 'Success',
+      description: `${req.user?.name || req.user?.email} exported CSV for Platform Activity tab: ${tabType}`,
+      metadata: { tabType, filters },
+      req
+    });
+
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.status(200).send(csvContent);
+  } catch (err) {
+    console.error('GET /api/evidence/platform-activity/export error:', err);
     res.status(500).json({ success: false, error: err.message });
   }
 });
