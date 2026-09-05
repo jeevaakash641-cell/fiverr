@@ -19,6 +19,7 @@ import { randomUUID } from 'crypto';
 import { getCourseById } from './courseService.js';
 import { getAssessmentById as getBaselineAssessmentById, getLearnerBaselineResponse } from './baselineAssessmentService.js';
 import { getCourseProgress, calculateCourseProgress } from './progressService.js';
+import { fulfillPendingRequestsForContent } from './contentRequestService.js';
 
 const AFTER_ASSESSMENTS_TABLE = process.env.DYNAMODB_TABLE_AFTER_ASSESSMENTS || 'EduLearnAfterAssessments';
 const AFTER_RESPONSES_TABLE = process.env.DYNAMODB_TABLE_AFTER_RESPONSES || 'EduLearnAfterAssessmentResponses';
@@ -397,6 +398,17 @@ export async function updateAssessment(assessmentId, payload, updatedBy = 'admin
     console.warn('[afterAssessmentService] DynamoDB update failed, using memory:', err.message);
   }
 
+  // Automatic Request Fulfillment when after assessment is published
+  if (updatedItem.status === 'published' && updatedItem.courseId) {
+    fulfillPendingRequestsForContent({
+      courseId: updatedItem.courseId,
+      requestType: 'after_assessment',
+      contentId: updatedItem.assessmentId,
+      contentTitle: updatedItem.title,
+      adminUser: { email: updatedBy }
+    }).catch(err => console.warn('Automatic request fulfillment error for after assessment:', err.message));
+  }
+
   return updatedItem;
 }
 
@@ -447,6 +459,17 @@ export async function updateAssessmentStatus(assessmentId, targetStatus, updated
     }));
   } catch (err) {
     console.warn('[afterAssessmentService] DynamoDB status update failed, using memory:', err.message);
+  }
+
+  // Automatic Request Fulfillment when status is changed to published
+  if (targetStatus === 'published' && updatedItem.courseId) {
+    fulfillPendingRequestsForContent({
+      courseId: updatedItem.courseId,
+      requestType: 'after_assessment',
+      contentId: updatedItem.assessmentId,
+      contentTitle: updatedItem.title,
+      adminUser: { email: updatedBy }
+    }).catch(err => console.warn('Automatic request fulfillment error for after assessment status change:', err.message));
   }
 
   return updatedItem;

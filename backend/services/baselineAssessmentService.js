@@ -17,6 +17,7 @@ import {
 } from '@aws-sdk/lib-dynamodb';
 import { randomUUID } from 'crypto';
 import { getCourseById } from './courseService.js';
+import { fulfillPendingRequestsForContent } from './contentRequestService.js';
 
 const ASSESSMENTS_TABLE = process.env.DYNAMODB_TABLE_BASELINE_ASSESSMENTS || 'EduLearnBaselineAssessments';
 const RESPONSES_TABLE = process.env.DYNAMODB_TABLE_BASELINE_RESPONSES || 'EduLearnBaselineResponses';
@@ -330,6 +331,17 @@ export async function updateAssessment(assessmentId, payload, updatedBy = 'admin
     console.warn('[baselineService] DynamoDB update failed, using memory:', err.message);
   }
 
+  // Automatic Request Fulfillment when baseline assessment is published
+  if (updatedItem.status === 'published' && updatedItem.courseId) {
+    fulfillPendingRequestsForContent({
+      courseId: updatedItem.courseId,
+      requestType: 'baseline_assessment',
+      contentId: updatedItem.assessmentId,
+      contentTitle: updatedItem.title,
+      adminUser: { email: updatedBy }
+    }).catch(err => console.warn('Automatic request fulfillment error for baseline assessment:', err.message));
+  }
+
   return updatedItem;
 }
 
@@ -380,6 +392,17 @@ export async function updateAssessmentStatus(assessmentId, targetStatus, updated
     }));
   } catch (err) {
     console.warn('[baselineService] DynamoDB status update failed, using memory:', err.message);
+  }
+
+  // Automatic Request Fulfillment when status is changed to published
+  if (targetStatus === 'published' && updatedItem.courseId) {
+    fulfillPendingRequestsForContent({
+      courseId: updatedItem.courseId,
+      requestType: 'baseline_assessment',
+      contentId: updatedItem.assessmentId,
+      contentTitle: updatedItem.title,
+      adminUser: { email: updatedBy }
+    }).catch(err => console.warn('Automatic request fulfillment error for baseline assessment status change:', err.message));
   }
 
   return updatedItem;

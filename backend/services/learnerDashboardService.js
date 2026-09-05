@@ -130,30 +130,34 @@ export async function getLearnerDashboardSummary(learnerUser) {
     const isCertificateIssued = !!cert;
 
     const courseTitle = course?.title || prog.courseTitle || 'Course';
-    const cleanCourseTitle = courseTitle.trim().toLowerCase();
 
-    // Check course quizzes & title matching across all quizzes
+    // 1. Quizzes matching strictly by permanent courseId (status: published)
     const courseQuizzes = allAdminQuizzes.filter(q => 
-      !q.isDeleted && (
-        q.courseId === cid || 
-        (q.courseTitle && q.courseTitle.trim().toLowerCase() === cleanCourseTitle)
-      )
+      !q.isDeleted && q.courseId === cid
     );
     const publishedQuizzes = courseQuizzes.filter(q => q.status === 'published');
     const hasMatchingQuiz = publishedQuizzes.length > 0;
     const quizMismatchOrMissing = publishedQuizzes.length === 0;
 
-    // Check assessment & title matching
-    const baselineMatchesTitle = !baselineAss || !baselineAss.courseTitle || baselineAss.courseTitle.trim().toLowerCase() === cleanCourseTitle;
-    const afterMatchesTitle = !afterAss || !afterAss.courseTitle || afterAss.courseTitle.trim().toLowerCase() === cleanCourseTitle;
-    const hasPublishedAssessment = !!(baselineAss || afterAss);
-    const hasMatchingAssessment = hasPublishedAssessment && baselineMatchesTitle && afterMatchesTitle;
-    const assessmentMismatchOrMissing = !hasMatchingAssessment;
+    // 2. Assessments matching strictly by courseId (status: published)
+    const hasPublishedBaseline = !!baselineAss && baselineAss.status === 'published';
+    const hasPublishedAfter = !!afterAss && afterAss.status === 'published';
+    const hasPublishedAssessment = hasPublishedBaseline || hasPublishedAfter;
+    const hasMatchingAssessment = hasPublishedAssessment;
+    const assessmentMismatchOrMissing = !hasPublishedAssessment;
 
-    // Check pending requests for this course
-    const courseRequests = learnerRequests.filter(r => r.courseId === cid && r.status === 'pending');
-    const quizRequestPending = courseRequests.some(r => r.requestType === 'quiz');
-    const assessmentRequestPending = courseRequests.some(r => r.requestType === 'assessment');
+    // 3. Check pending / in-progress / rejected requests for this course
+    const courseRequests = learnerRequests.filter(r => r.courseId === cid);
+    const activeRequests = courseRequests.filter(r => r.status === 'pending' || r.status === 'in_progress');
+    const quizRequestPending = activeRequests.some(r => r.requestType === 'quiz');
+    const assessmentRequestPending = activeRequests.some(r => 
+      r.requestType === 'baseline_assessment' || r.requestType === 'after_assessment' || r.requestType === 'assessment'
+    );
+
+    const latestQuizRequest = courseRequests.filter(r => r.requestType === 'quiz')[0] || null;
+    const latestAssessmentRequest = courseRequests.filter(r => 
+      r.requestType === 'baseline_assessment' || r.requestType === 'after_assessment' || r.requestType === 'assessment'
+    )[0] || null;
 
     const pendingQuizzes = [];
     for (const q of publishedQuizzes) {
@@ -201,6 +205,8 @@ export async function getLearnerDashboardSummary(learnerUser) {
       assessmentMismatchOrMissing,
       quizRequestPending,
       assessmentRequestPending,
+      latestQuizRequest,
+      latestAssessmentRequest,
       pendingQuizzes,
       resumeInfo
     };

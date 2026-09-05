@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import Feedback from './Feedback';
 import ContentRequestModal from './ContentRequestModal';
+import NotificationBell from './NotificationBell';
 
 const Dashboard = () => {
   const { user, logout, predictions } = useAuth();
@@ -227,6 +228,8 @@ const Dashboard = () => {
               <MessageSquare className="h-3.5 w-3.5 text-amber-700" />
               <span>Feedback</span>
             </button>
+
+            <NotificationBell />
 
             {isAdmin && (
               <Link
@@ -477,7 +480,7 @@ const Dashboard = () => {
                                   </span>
                                   {c.quizRequestPending ? (
                                     <span className="text-[10px] font-bold text-purple-700 bg-purple-100 px-2 py-0.5 rounded-md shrink-0">
-                                      Pending Admin Upload ⏳
+                                      Quiz requested — awaiting Admin ⏳
                                     </span>
                                   ) : (
                                     <button
@@ -497,7 +500,7 @@ const Dashboard = () => {
                                   </span>
                                   {c.assessmentRequestPending ? (
                                     <span className="text-[10px] font-bold text-teal-700 bg-teal-100 px-2 py-0.5 rounded-md shrink-0">
-                                      Pending Admin Post ⏳
+                                      Assessment requested — awaiting Admin ⏳
                                     </span>
                                   ) : (
                                     <button
@@ -573,7 +576,7 @@ const Dashboard = () => {
                                 </span>
                                 {c.quizRequestPending ? (
                                   <span className="text-[10px] font-bold text-purple-700 bg-purple-100 px-2 py-0.5 rounded-md shrink-0">
-                                    Pending Admin Upload ⏳
+                                    Quiz requested — awaiting Admin ⏳
                                   </span>
                                 ) : (
                                   <button
@@ -593,7 +596,7 @@ const Dashboard = () => {
                                 </span>
                                 {c.assessmentRequestPending ? (
                                   <span className="text-[10px] font-bold text-teal-700 bg-teal-100 px-2 py-0.5 rounded-md shrink-0">
-                                    Pending Admin Post ⏳
+                                    Assessment requested — awaiting Admin ⏳
                                   </span>
                                 ) : (
                                   <button

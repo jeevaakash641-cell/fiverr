@@ -25,8 +25,15 @@ import {
   DEFAULT_FALLBACK_TOPICS
 } from '../services/helpTopicService'
 import { COURSE_CATEGORIES } from '../services/courseService'
-import { fetchAdminFeedbackList, recordAdminConsentWithdrawal } from '../services/beneficiaryFeedbackService'
-import { fetchAdminContentRequests, updateAdminContentRequest } from '../services/contentRequestService'
+import { 
+  fetchAdminContentRequests, 
+  updateAdminContentRequest, 
+  rejectAdminContentRequest, 
+  linkExistingContentToRequest 
+} from '../services/contentRequestService'
+import { fetchAdminQuizzes } from '../services/quizService'
+import { fetchAdminAssessments as fetchAdminBaselines } from '../services/baselineAssessmentService'
+import { fetchAdminAfterAssessments } from '../services/afterAssessmentService'
 import { logAdminClientEvent } from '../services/adminAuditService'
 
 const AdminPanel = () => {
@@ -110,6 +117,23 @@ const AdminPanel = () => {
   const [deletingFeedbackId, setDeletingFeedbackId] = useState(null)
   const [selectedBeneficiaryFeedback, setSelectedBeneficiaryFeedback] = useState(null)
   const [beneficiaryModalOpen, setBeneficiaryModalOpen] = useState(false)
+
+  // Content Request Modal States
+  const [rejectModalState, setRejectModalState] = useState({
+    isOpen: false,
+    requestId: null,
+    reason: '',
+    submitting: false
+  })
+  const [linkModalState, setLinkModalState] = useState({
+    isOpen: false,
+    request: null,
+    contentType: 'quiz',
+    contentId: '',
+    availableOptions: [],
+    loading: false,
+    submitting: false
+  })
 
   // Add Admin Form State
   const [showAddAdminForm, setShowAddAdminForm] = useState(false)
@@ -455,6 +479,111 @@ const AdminPanel = () => {
       showAlert('error', 'Failed to update request: ' + err.message)
     } finally {
       setUpdatingRequestId(null)
+    }
+  }
+
+  const handleOpenRejectModal = (requestId) => {
+    setRejectModalState({
+      isOpen: true,
+      requestId,
+      reason: '',
+      submitting: false
+    })
+  }
+
+  const handleConfirmReject = async () => {
+    if (!rejectModalState.requestId) return
+    setRejectModalState(prev => ({ ...prev, submitting: true }))
+    try {
+      await rejectAdminContentRequest(rejectModalState.requestId, rejectModalState.reason || 'Content request rejected by administrator', user)
+      showAlert('success', 'Content request rejected and learner notified.')
+      setRejectModalState({ isOpen: false, requestId: null, reason: '', submitting: false })
+      loadAdminData()
+    } catch (err) {
+      showAlert('error', 'Failed to reject request: ' + err.message)
+      setRejectModalState(prev => ({ ...prev, submitting: false }))
+    }
+  }
+
+  const handleOpenLinkModal = async (req) => {
+    const defaultType = req.requestType === 'after_assessment' ? 'after_assessment' : (req.requestType === 'baseline_assessment' || req.requestType === 'assessment') ? 'baseline_assessment' : 'quiz'
+    setLinkModalState({
+      isOpen: true,
+      request: req,
+      contentType: defaultType,
+      contentId: '',
+      availableOptions: [],
+      loading: true,
+      submitting: false
+    })
+
+    try {
+      let options = []
+      if (defaultType === 'quiz') {
+        const quizzes = await fetchAdminQuizzes({ courseId: req.courseId }, user).catch(() => [])
+        options = (quizzes || []).map(q => ({ id: q.quizId, title: q.title || 'Untitled Quiz', status: q.status }))
+      } else if (defaultType === 'baseline_assessment') {
+        const baselines = await fetchAdminBaselines({ courseId: req.courseId }, user).catch(() => [])
+        options = (baselines || []).map(b => ({ id: b.assessmentId, title: b.title || 'Untitled Baseline', status: b.status }))
+      } else {
+        const afters = await fetchAdminAfterAssessments({ courseId: req.courseId }, user).catch(() => [])
+        options = (afters || []).map(a => ({ id: a.assessmentId, title: a.title || 'Untitled After Assessment', status: a.status }))
+      }
+      setLinkModalState(prev => ({
+        ...prev,
+        availableOptions: options,
+        contentId: options[0]?.id || '',
+        loading: false
+      }))
+    } catch (err) {
+      setLinkModalState(prev => ({ ...prev, loading: false }))
+    }
+  }
+
+  const handleContentTypeChangeInLinkModal = async (newType) => {
+    if (!linkModalState.request) return
+    setLinkModalState(prev => ({ ...prev, contentType: newType, loading: true, availableOptions: [], contentId: '' }))
+    try {
+      let options = []
+      const cid = linkModalState.request.courseId
+      if (newType === 'quiz') {
+        const quizzes = await fetchAdminQuizzes({ courseId: cid }, user).catch(() => [])
+        options = (quizzes || []).map(q => ({ id: q.quizId, title: q.title || 'Untitled Quiz', status: q.status }))
+      } else if (newType === 'baseline_assessment') {
+        const baselines = await fetchAdminBaselines({ courseId: cid }, user).catch(() => [])
+        options = (baselines || []).map(b => ({ id: b.assessmentId, title: b.title || 'Untitled Baseline', status: b.status }))
+      } else {
+        const afters = await fetchAdminAfterAssessments({ courseId: cid }, user).catch(() => [])
+        options = (afters || []).map(a => ({ id: a.assessmentId, title: a.title || 'Untitled After Assessment', status: a.status }))
+      }
+      setLinkModalState(prev => ({
+        ...prev,
+        availableOptions: options,
+        contentId: options[0]?.id || '',
+        loading: false
+      }))
+    } catch (err) {
+      setLinkModalState(prev => ({ ...prev, loading: false }))
+    }
+  }
+
+  const handleConfirmLink = async () => {
+    if (!linkModalState.request || !linkModalState.contentId) {
+      showAlert('error', 'Please select a content item to link.')
+      return
+    }
+    setLinkModalState(prev => ({ ...prev, submitting: true }))
+    try {
+      await linkExistingContentToRequest(linkModalState.request.requestId, {
+        contentType: linkModalState.contentType,
+        contentId: linkModalState.contentId
+      }, user)
+      showAlert('success', 'Content successfully linked and request marked fulfilled!')
+      setLinkModalState({ isOpen: false, request: null, contentType: 'quiz', contentId: '', availableOptions: [], loading: false, submitting: false })
+      loadAdminData()
+    } catch (err) {
+      showAlert('error', 'Failed to link content: ' + err.message)
+      setLinkModalState(prev => ({ ...prev, submitting: false }))
     }
   }
 
@@ -2213,9 +2342,14 @@ const AdminPanel = () => {
                                 </span>
                               )}
                               {isFulfilled && (
-                                <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200" title={req.fulfilledContentId ? `Linked to ${req.fulfilledContentType}: ${req.fulfilledContentId}` : 'Fulfilled'}>
                                   <CheckCircle className="h-3 w-3 mr-1" />
                                   Fulfilled
+                                </span>
+                              )}
+                              {req.status === 'rejected' && (
+                                <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-800 border border-red-200" title={req.rejectionReason || 'Rejected'}>
+                                  Rejected
                                 </span>
                               )}
                               {req.status === 'dismissed' && (
@@ -2232,62 +2366,72 @@ const AdminPanel = () => {
 
                             {/* Actions */}
                             <td className="px-5 py-4 text-right whitespace-nowrap">
-                              <div className="flex items-center justify-end space-x-2">
-                                {/* Direct Creator Link */}
-                                {isQuiz ? (
-                                  <Link
-                                    to="/admin/quizzes"
-                                    className="px-2.5 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-xs font-semibold transition-colors flex items-center gap-1 shadow-sm"
-                                    title="Open Quiz Manager to create or match title"
-                                  >
-                                    <span>Create Quiz</span>
-                                    <ExternalLink className="h-3 w-3" />
-                                  </Link>
+                              <div className="flex items-center justify-end space-x-1.5 flex-wrap gap-y-1">
+                                {isPending ? (
+                                  <>
+                                    {/* Direct Create & Link Button */}
+                                    {isQuiz ? (
+                                      <Link
+                                        to={`/admin/quizzes?courseId=${encodeURIComponent(req.courseId || '')}&requestId=${encodeURIComponent(req.requestId)}&create=true`}
+                                        className="px-2.5 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-xs font-semibold transition-colors flex items-center gap-1 shadow-sm"
+                                        title="Create and auto-link new quiz for this course"
+                                      >
+                                        <span>Create & Link Quiz</span>
+                                        <ExternalLink className="h-3 w-3" />
+                                      </Link>
+                                    ) : (
+                                      <div className="flex items-center space-x-1">
+                                        <Link
+                                          to={`/admin/baseline-assessments?courseId=${encodeURIComponent(req.courseId || '')}&requestId=${encodeURIComponent(req.requestId)}&create=true`}
+                                          className="px-2 py-1.5 bg-teal-700 hover:bg-teal-800 text-white rounded-lg text-xs font-semibold transition-colors flex items-center gap-1 shadow-sm"
+                                          title="Create Baseline Assessment"
+                                        >
+                                          <span>Baseline</span>
+                                          <ExternalLink className="h-3 w-3" />
+                                        </Link>
+                                        <Link
+                                          to={`/admin/after-assessments?courseId=${encodeURIComponent(req.courseId || '')}&requestId=${encodeURIComponent(req.requestId)}&create=true`}
+                                          className="px-2 py-1.5 bg-blue-700 hover:bg-blue-800 text-white rounded-lg text-xs font-semibold transition-colors flex items-center gap-1 shadow-sm"
+                                          title="Create After Assessment"
+                                        >
+                                          <span>After</span>
+                                          <ExternalLink className="h-3 w-3" />
+                                        </Link>
+                                      </div>
+                                    )}
+
+                                    {/* Link Existing Content */}
+                                    <button
+                                      type="button"
+                                      onClick={() => handleOpenLinkModal(req)}
+                                      className="px-2.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
+                                      title="Link an existing published quiz or assessment"
+                                    >
+                                      Link Existing
+                                    </button>
+
+                                    {/* Reject Button */}
+                                    <button
+                                      type="button"
+                                      onClick={() => handleOpenRejectModal(req.requestId)}
+                                      className="px-2 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
+                                      title="Reject with reason"
+                                    >
+                                      Reject
+                                    </button>
+                                  </>
                                 ) : (
-                                  <Link
-                                    to="/admin/baseline-assessments"
-                                    className="px-2.5 py-1.5 bg-teal-700 hover:bg-teal-800 text-white rounded-lg text-xs font-semibold transition-colors flex items-center gap-1 shadow-sm"
-                                    title="Open Baseline Assessment Manager"
-                                  >
-                                    <span>Create Assessment</span>
-                                    <ExternalLink className="h-3 w-3" />
-                                  </Link>
-                                )}
-
-                                {/* Mark Fulfilled Button */}
-                                {!isFulfilled && (
-                                  <button
-                                    type="button"
-                                    onClick={() => handleUpdateRequestStatus(req.requestId, 'fulfilled')}
-                                    disabled={updatingRequestId === req.requestId}
-                                    className="px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-lg text-xs font-semibold transition-colors disabled:opacity-50 cursor-pointer"
-                                  >
-                                    Mark Fulfilled
-                                  </button>
-                                )}
-
-                                {/* Dismiss Button */}
-                                {isPending && (
-                                  <button
-                                    type="button"
-                                    onClick={() => handleUpdateRequestStatus(req.requestId, 'dismissed')}
-                                    disabled={updatingRequestId === req.requestId}
-                                    className="px-2.5 py-1.5 bg-gray-50 hover:bg-gray-100 text-gray-600 border border-gray-200 rounded-lg text-xs font-medium transition-colors disabled:opacity-50 cursor-pointer"
-                                  >
-                                    Dismiss
-                                  </button>
-                                )}
-
-                                {/* Reopen Button */}
-                                {!isPending && (
-                                  <button
-                                    type="button"
-                                    onClick={() => handleUpdateRequestStatus(req.requestId, 'pending')}
-                                    disabled={updatingRequestId === req.requestId}
-                                    className="px-2.5 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-lg text-xs font-medium transition-colors disabled:opacity-50 cursor-pointer"
-                                  >
-                                    Reopen
-                                  </button>
+                                  <>
+                                    {/* Reopen Button */}
+                                    <button
+                                      type="button"
+                                      onClick={() => handleUpdateRequestStatus(req.requestId, 'pending')}
+                                      disabled={updatingRequestId === req.requestId}
+                                      className="px-2.5 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-lg text-xs font-medium transition-colors disabled:opacity-50 cursor-pointer"
+                                    >
+                                      Reopen
+                                    </button>
+                                  </>
                                 )}
                               </div>
                             </td>
@@ -2626,6 +2770,161 @@ const AdminPanel = () => {
                 className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-lg text-xs font-bold cursor-pointer transition-colors"
               >
                 Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reject Content Request Modal */}
+      {rejectModalState.isOpen && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in duration-150">
+            <h3 className="text-base font-black text-gray-900 flex items-center gap-2">
+              <AlertCircle className="h-5 w-5 text-red-600" />
+              Reject Content Request
+            </h3>
+            <p className="text-xs text-gray-600">
+              Please enter a reason for rejecting this learner's request. The learner will receive an in-app notification with this reason.
+            </p>
+            <div>
+              <label className="block text-xs font-bold text-gray-700 mb-1">
+                Reason for Rejection *
+              </label>
+              <textarea
+                value={rejectModalState.reason}
+                onChange={(e) => setRejectModalState(prev => ({ ...prev, reason: e.target.value }))}
+                placeholder="e.g., Content is covered under another module / Quiz not required for this introductory workshop"
+                className="w-full p-3 border border-gray-300 rounded-xl text-xs focus:ring-2 focus:ring-red-500 focus:outline-none min-h-[90px]"
+                rows={3}
+              />
+            </div>
+            <div className="flex items-center justify-end space-x-2 pt-2 border-t border-gray-100">
+              <button
+                type="button"
+                onClick={() => setRejectModalState({ isOpen: false, requestId: null, reason: '', submitting: false })}
+                disabled={rejectModalState.submitting}
+                className="px-4 py-2 text-xs font-bold text-gray-600 hover:bg-gray-100 rounded-xl transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmReject}
+                disabled={rejectModalState.submitting || !rejectModalState.reason.trim()}
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold transition-colors disabled:opacity-50 cursor-pointer shadow-xs"
+              >
+                {rejectModalState.submitting ? 'Rejecting...' : 'Confirm Rejection'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Link Existing Content Modal */}
+      {linkModalState.isOpen && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in duration-150">
+            <h3 className="text-base font-black text-gray-900 flex items-center gap-2">
+              <CheckCircle className="h-5 w-5 text-indigo-600" />
+              Link Existing Content
+            </h3>
+            <p className="text-xs text-gray-600">
+              Select an existing published quiz or assessment to satisfy this learner request. The learner will be notified immediately.
+            </p>
+
+            <div className="p-3 bg-gray-50 rounded-xl border border-gray-200 text-xs space-y-1">
+              <div className="font-bold text-gray-900">{linkModalState.request?.courseTitle}</div>
+              <div className="text-gray-500 font-mono text-[11px]">Course ID: {linkModalState.request?.courseId}</div>
+              <div className="text-gray-500 text-[11px]">Learner: {linkModalState.request?.learnerName} ({linkModalState.request?.learnerEmail})</div>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">
+                  Content Type
+                </label>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleContentTypeChangeInLinkModal('quiz')}
+                    className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-bold border transition-colors ${
+                      linkModalState.contentType === 'quiz'
+                        ? 'bg-purple-600 text-white border-purple-600'
+                        : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'
+                    }`}
+                  >
+                    Quiz
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleContentTypeChangeInLinkModal('baseline_assessment')}
+                    className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-bold border transition-colors ${
+                      linkModalState.contentType === 'baseline_assessment'
+                        ? 'bg-teal-700 text-white border-teal-700'
+                        : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'
+                    }`}
+                  >
+                    Baseline
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleContentTypeChangeInLinkModal('after_assessment')}
+                    className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-bold border transition-colors ${
+                      linkModalState.contentType === 'after_assessment'
+                        ? 'bg-blue-700 text-white border-blue-700'
+                        : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'
+                    }`}
+                  >
+                    After Assessment
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">
+                  Select Item to Link *
+                </label>
+                {linkModalState.loading ? (
+                  <div className="p-3 text-center text-xs text-gray-500 bg-gray-50 rounded-xl">
+                    Loading content items for course...
+                  </div>
+                ) : linkModalState.availableOptions.length === 0 ? (
+                  <div className="p-3 text-center text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-xl">
+                    No matching published {linkModalState.contentType.replace('_', ' ')} found for this course. You can create a new one using "Create & Link".
+                  </div>
+                ) : (
+                  <select
+                    value={linkModalState.contentId}
+                    onChange={(e) => setLinkModalState(prev => ({ ...prev, contentId: e.target.value }))}
+                    className="w-full p-2.5 border border-gray-300 rounded-xl text-xs bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                  >
+                    {linkModalState.availableOptions.map(opt => (
+                      <option key={opt.id} value={opt.id}>
+                        {opt.title} ({opt.status}) - ID: {opt.id}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end space-x-2 pt-2 border-t border-gray-100">
+              <button
+                type="button"
+                onClick={() => setLinkModalState({ isOpen: false, request: null, contentType: 'quiz', contentId: '', availableOptions: [], loading: false, submitting: false })}
+                disabled={linkModalState.submitting}
+                className="px-4 py-2 text-xs font-bold text-gray-600 hover:bg-gray-100 rounded-xl transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmLink}
+                disabled={linkModalState.submitting || !linkModalState.contentId || linkModalState.availableOptions.length === 0}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-colors disabled:opacity-50 cursor-pointer shadow-xs"
+              >
+                {linkModalState.submitting ? 'Linking...' : 'Link & Fulfill'}
               </button>
             </div>
           </div>

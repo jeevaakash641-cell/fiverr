@@ -134,6 +134,20 @@ const AdminQuizzes = () => {
     }
   }
 
+  // Handle URL query parameters for courseId and create trigger
+  useEffect(() => {
+    const targetCourseId = searchParams.get('courseId')
+    const shouldCreate = searchParams.get('create') === 'true'
+    if (courses.length > 0 && targetCourseId && targetCourseId !== 'all') {
+      setCourseFilter(targetCourseId)
+      if (shouldCreate) {
+        setCreateChoiceOpen(true)
+        handleEditorCourseChange(targetCourseId)
+        handleAiCourseChange(targetCourseId)
+      }
+    }
+  }, [courses, searchParams])
+
   // Load modules & lessons when course changes in AI modal
   const handleAiCourseChange = async (courseId) => {
     setAiFormData(prev => ({ ...prev, courseId, moduleId: '', moduleTitle: '', lessonId: '', lessonTitle: '' }))

@@ -36,6 +36,7 @@ import impactReportsRouter from './routes/impactReports.js';
 import evidenceRouter from './routes/evidence.js';
 import contentRequestsRouter from './routes/contentRequests.js';
 import adminAuditRouter from './routes/adminAudit.js';
+import notificationsRouter from './routes/notifications.js';
 import { ensureAuditTableExists } from './services/adminAuditService.js';
 import multer from 'multer';
 import { uploadBook } from './services/s3BooksService.js';
@@ -164,6 +165,7 @@ app.use('/api/impact-reports', impactReportsRouter);
 app.use('/api/evidence', evidenceRouter);
 app.use('/api/content-requests', contentRequestsRouter);
 app.use('/api/admin/audit-logs', adminAuditRouter);
+app.use('/api/notifications', notificationsRouter);
 
 // Initialize audit logs table
 ensureAuditTableExists().catch(err => console.warn('Audit table init notice:', err.message));

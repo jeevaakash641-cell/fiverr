@@ -12,6 +12,7 @@ import { getCourseById } from './courseService.js';
 import { getModuleById } from './moduleService.js';
 import { getLessonById } from './lessonService.js';
 import { getBedrockResponse } from './bedrockService.js';
+import { fulfillPendingRequestsForContent } from './contentRequestService.js';
 
 const QUIZZES_TABLE = process.env.DYNAMODB_TABLE_QUIZZES || 'EduLearnQuizzes';
 const ATTEMPTS_TABLE = process.env.DYNAMODB_TABLE_QUIZ_ATTEMPTS || 'EduLearnQuizAttempts';
@@ -450,6 +451,17 @@ export async function updateQuiz(quizId, data, updatedByEmail = 'admin') {
     console.warn(`[quizService] DynamoDB update failed for ${quizId}:`, err.message);
   }
 
+  // Automatic Request Fulfillment when quiz is published
+  if (updatedQuiz.status === 'published' && updatedQuiz.courseId) {
+    fulfillPendingRequestsForContent({
+      courseId: updatedQuiz.courseId,
+      requestType: 'quiz',
+      contentId: updatedQuiz.quizId,
+      contentTitle: updatedQuiz.title,
+      adminUser: { email: updatedByEmail }
+    }).catch(err => console.warn('Automatic request fulfillment error for quiz:', err.message));
+  }
+
   return updatedQuiz;
 }
 
@@ -492,6 +504,17 @@ export async function updateQuizStatus(quizId, status, updatedByEmail = 'admin')
     }));
   } catch (err) {
     console.warn(`[quizService] DynamoDB status update failed for ${quizId}:`, err.message);
+  }
+
+  // Automatic Request Fulfillment when quiz status is changed to published
+  if (status === 'published' && updatedQuiz.courseId) {
+    fulfillPendingRequestsForContent({
+      courseId: updatedQuiz.courseId,
+      requestType: 'quiz',
+      contentId: updatedQuiz.quizId,
+      contentTitle: updatedQuiz.title,
+      adminUser: { email: updatedByEmail }
+    }).catch(err => console.warn('Automatic request fulfillment error for quiz status change:', err.message));
   }
 
   return updatedQuiz;

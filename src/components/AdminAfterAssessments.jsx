@@ -105,6 +105,37 @@ const AdminAfterAssessments = () => {
     loadData();
   }, []);
 
+  // Handle URL query parameters for courseId and create trigger
+  useEffect(() => {
+    const targetCourseId = searchParams.get('courseId');
+    const shouldCreate = searchParams.get('create') === 'true';
+    if (courses.length > 0 && targetCourseId && targetCourseId !== 'all') {
+      setCourseFilter(targetCourseId);
+      if (shouldCreate) {
+        const foundCourse = courses.find(c => c.courseId === targetCourseId);
+        const matchedBaseline = baselines.find(b => b.courseId === targetCourseId && b.status === 'published');
+        setEditingAssessment(null);
+        setFormData({
+          title: `After Course Assessment - ${foundCourse?.title || ''}`,
+          courseId: targetCourseId,
+          baselineAssessmentId: matchedBaseline?.assessmentId || '',
+          instructions: 'This short assessment helps you and One Community Ely understand what changed during your training. It is not a pass-or-fail test.',
+          status: 'draft',
+          questions: [
+            {
+              questionId: `q_${Date.now()}_1`,
+              type: 'short_text',
+              questionText: 'What was the most valuable thing you learned or achieved in this course?',
+              placeholder: 'Share your feedback or takeaways...',
+              required: true
+            }
+          ]
+        });
+        setEditorOpen(true);
+      }
+    }
+  }, [courses, baselines, searchParams]);
+
   // Metrics
   const metrics = useMemo(() => {
     const total = assessments.length;

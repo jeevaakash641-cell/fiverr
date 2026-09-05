@@ -1,8 +1,7 @@
 /**
- * Content Request Routes
- * One Community Ely Online Training Centre
+ * Content Request Routes — One Community Ely Online Training Centre
  * Endpoints for learners requesting missing/mismatched quizzes & assessments,
- * and administrators reviewing & fulfilling them.
+ * and administrators reviewing, linking, fulfilling, and rejecting them.
  */
 
 import express from 'express';
@@ -10,7 +9,9 @@ import {
   createContentRequest,
   getLearnerContentRequests,
   getAllContentRequestsAdmin,
-  updateContentRequestStatus
+  updateContentRequestStatus,
+  linkExistingContentToRequest,
+  rejectContentRequest
 } from '../services/contentRequestService.js';
 import { requireAuth, requireAdmin } from '../middleware/auth.js';
 import { recordAdminAction, AuditCategories } from '../services/adminAuditService.js';
@@ -23,7 +24,7 @@ const router = express.Router();
  */
 router.post('/', requireAuth, async (req, res) => {
   try {
-    const { courseId, courseTitle, requestType, note } = req.body;
+    const { courseId, courseTitle, requestType, moduleId, moduleTitle, lessonId, lessonTitle, note } = req.body;
     const learnerEmail = req.user.email;
     const learnerName = req.user.name || req.user.displayName || learnerEmail.split('@')[0];
 
@@ -33,6 +34,10 @@ router.post('/', requireAuth, async (req, res) => {
       courseId,
       courseTitle,
       requestType,
+      moduleId,
+      moduleTitle,
+      lessonId,
+      lessonTitle,
       note
     });
 
@@ -74,7 +79,67 @@ router.get('/admin', requireAdmin, async (req, res) => {
 });
 
 /**
- * 4. PATCH /api/content-requests/admin/:requestId
+ * 4. POST /api/content-requests/admin/link-content
+ * Admin manually links an existing published quiz / assessment to a request
+ */
+router.post('/admin/link-content', requireAdmin, async (req, res) => {
+  try {
+    const { requestId, contentId, contentType } = req.body;
+    if (!requestId || !contentId || !contentType) {
+      return res.status(400).json({
+        success: false,
+        error: 'requestId, contentId, and contentType are required.'
+      });
+    }
+
+    const updated = await linkExistingContentToRequest({
+      requestId,
+      contentId,
+      contentType,
+      adminUser: req.adminUser || req.user,
+      req
+    });
+
+    res.status(200).json({
+      success: true,
+      message: 'Content successfully linked and request marked fulfilled.',
+      request: updated
+    });
+  } catch (err) {
+    console.error('POST /api/content-requests/admin/link-content error:', err);
+    res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * 5. PATCH /api/content-requests/admin/:requestId/reject
+ * Admin rejects request with a reason
+ */
+router.patch('/admin/:requestId/reject', requireAdmin, async (req, res) => {
+  try {
+    const { requestId } = req.params;
+    const { rejectionReason } = req.body;
+
+    const updated = await rejectContentRequest({
+      requestId,
+      rejectionReason,
+      adminUser: req.adminUser || req.user,
+      req
+    });
+
+    res.status(200).json({
+      success: true,
+      message: 'Request rejected.',
+      request: updated
+    });
+  } catch (err) {
+    console.error('PATCH /api/content-requests/admin/:requestId/reject error:', err);
+    res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * 6. PATCH /api/content-requests/admin/:requestId
  * Admin updates request status (fulfilled / dismissed / pending)
  */
 router.patch('/admin/:requestId', requireAdmin, async (req, res) => {
@@ -91,10 +156,10 @@ router.patch('/admin/:requestId', requireAdmin, async (req, res) => {
       category: AuditCategories.LEARNER_MANAGEMENT,
       targetType: 'ContentRequest',
       targetId: requestId,
-      targetName: updated?.courseTitle || requestId,
+      targetName: updated?.courseTitleSnapshot || updated?.courseTitle || requestId,
       result: 'Success',
       description: `${req.user?.name || adminEmail} updated content request (${requestId}) status to "${status}"`,
-      metadata: { newStatus: status, learnerEmail: updated?.learnerEmail, requestType: updated?.requestType },
+      metadata: { newStatus: status, learnerEmail: updated?.requesterId || updated?.learnerEmail, requestType: updated?.requestType },
       req
     });
 
