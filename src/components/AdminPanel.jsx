@@ -8,7 +8,8 @@ import {
   LogOut, Settings as SettingsIcon, Key, Lock, UserPlus, UserMinus,
   MessageSquare, Star, MessageCircle, ThumbsUp, HelpCircle, Edit,
   Compass, Check, Tag, Layers, X, ChevronRight, ClipboardCheck, Award,
-  Inbox, ExternalLink, Clock, FileQuestion, Menu, History as HistoryIcon
+  Inbox, ExternalLink, Clock, FileQuestion, Menu, History as HistoryIcon,
+  RotateCcw
 } from 'lucide-react'
 import { 
   fetchAllUsersList, banUser, unbanUser, deleteUserAccount, deleteAllLearners,
