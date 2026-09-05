@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, useRef } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import {
@@ -134,13 +134,17 @@ const AdminQuizzes = () => {
     }
   }
 
+  // Track if create query param was already handled
+  const createTriggeredRef = useRef(false)
+
   // Handle URL query parameters for courseId and create trigger
   useEffect(() => {
     const targetCourseId = searchParams.get('courseId')
     const shouldCreate = searchParams.get('create') === 'true'
     if (courses.length > 0 && targetCourseId && targetCourseId !== 'all') {
       setCourseFilter(targetCourseId)
-      if (shouldCreate) {
+      if (shouldCreate && !createTriggeredRef.current) {
+        createTriggeredRef.current = true
         setCreateChoiceOpen(true)
         handleEditorCourseChange(targetCourseId)
         handleAiCourseChange(targetCourseId)
