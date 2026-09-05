@@ -150,5 +150,32 @@ export async function getAllUsersAdmin() {
   });
 }
 
-export default { saveUser, getUserByEmail, updateUser, deleteUser, getAllUsersAdmin };
+/** Delete all learner accounts (preserves teachers and admins) */
+export async function deleteAllLearners() {
+  const allUsers = await getAllUsersAdmin();
+  const learnersToDelete = allUsers.filter(u => {
+    const isTeacher = u.userType === 'teacher';
+    const isAdmin = u.role === 'admin' || u.isAdmin === true || u.email?.toLowerCase() === 'admin@onecommunityely.com';
+    return !isTeacher && !isAdmin;
+  });
+
+  const client = getClient();
+  let deletedCount = 0;
+
+  for (const learner of learnersToDelete) {
+    const email = learner.email?.toLowerCase().trim();
+    if (!email) continue;
+    inMemoryUsers.delete(email);
+    try {
+      await client.send(new DeleteCommand({ TableName: TABLE_NAME, Key: { email } }));
+    } catch (err) {
+      console.warn(`[userService] DynamoDB delete failed for ${email}:`, err.message);
+    }
+    deletedCount++;
+  }
+
+  return { deletedCount };
+}
+
+export default { saveUser, getUserByEmail, updateUser, deleteUser, deleteAllLearners, getAllUsersAdmin };
 

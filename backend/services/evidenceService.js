@@ -823,6 +823,84 @@ export async function deleteEvidenceRecord(evidenceId, user) {
   return { success: true, message: `Evidence record ${evidenceId} permanently deleted.` };
 }
 
+/**
+ * Permanently delete ALL evidence records and associated attachments
+ */
+export async function deleteAllEvidenceRecords(user) {
+  let allRecords = Array.from(inMemoryEvidence.values());
+
+  try {
+    const client = getClient();
+    const res = await client.send(new ScanCommand({ TableName: EVIDENCE_TABLE }));
+    if (res.Items && res.Items.length > 0) {
+      allRecords = res.Items;
+    }
+  } catch (err) {
+    // rely on in-memory
+  }
+
+  const client = getClient();
+  const s3 = getS3Client();
+  let deletedCount = 0;
+
+  for (const record of allRecords) {
+    const eid = record.evidenceId;
+    if (Array.isArray(record.attachments)) {
+      for (const att of record.attachments) {
+        if (att.s3Key) {
+          try {
+            await s3.send(new DeleteObjectCommand({ Bucket: S3_BUCKET, Key: att.s3Key }));
+          } catch (e) {}
+        }
+        inMemoryAttachmentBuffers.delete(att.attachmentId);
+      }
+    }
+
+    inMemoryEvidence.delete(eid);
+    try {
+      await client.send(new DeleteCommand({
+        TableName: EVIDENCE_TABLE,
+        Key: { evidenceId: eid }
+      }));
+    } catch (e) {}
+    deletedCount++;
+  }
+
+  inMemoryEvidence.clear();
+  persistEvidence();
+
+  return {
+    success: true,
+    deletedCount,
+    message: `All ${deletedCount} evidence records permanently deleted.`
+  };
+}
+
+/**
+ * Permanently delete multiple selected evidence records
+ */
+export async function deleteMultipleEvidenceRecords(evidenceIds = [], user) {
+  if (!Array.isArray(evidenceIds) || evidenceIds.length === 0) {
+    return { success: true, deletedCount: 0 };
+  }
+
+  let deletedCount = 0;
+  for (const id of evidenceIds) {
+    try {
+      await deleteEvidenceRecord(id, user);
+      deletedCount++;
+    } catch (err) {
+      console.warn(`[evidenceService] Failed to delete evidence ${id}:`, err.message);
+    }
+  }
+
+  return {
+    success: true,
+    deletedCount,
+    message: `${deletedCount} evidence records permanently deleted.`
+  };
+}
+
 // --- Attachment Operations ---
 
 /**

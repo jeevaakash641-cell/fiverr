@@ -77,6 +77,25 @@ export const deleteUserFromDb = async (email) => {
   }
 };
 
+/** Delete all learners from DynamoDB */
+export const deleteAllLearnersFromDb = async () => {
+  try {
+    const res = await fetch(`${BASE}/learners/all`, {
+      method: 'DELETE',
+      headers: getAuthHeaders()
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to delete learners from database');
+    }
+    const data = await res.json();
+    return data;
+  } catch (err) {
+    console.warn('Delete all learners DB failed:', err.message);
+    throw err;
+  }
+};
+
 /** Fetch all users from DynamoDB (for Admin Panel) */
 export const fetchAllUsersFromDb = async () => {
   try {

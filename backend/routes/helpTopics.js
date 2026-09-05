@@ -9,7 +9,9 @@ import {
   getHelpTopicById,
   createHelpTopic,
   updateHelpTopic,
-  deleteHelpTopic
+  deleteHelpTopic,
+  deleteAllHelpTopics,
+  resetDefaultHelpTopics
 } from '../services/helpTopicService.js';
 import { requireAdmin } from '../middleware/auth.js';
 
@@ -126,7 +128,51 @@ router.put('/:topicId', requireAdmin, async (req, res) => {
 });
 
 /**
- * 5. DELETE /api/help-topics/:topicId
+ * 5. DELETE /api/help-topics/all
+ * Delete all help topics (Admin only)
+ */
+router.delete('/all', requireAdmin, async (req, res) => {
+  try {
+    const result = await deleteAllHelpTopics();
+    console.log(`✅ All help topics deleted: ${result.deletedCount} items removed`);
+    res.json({
+      success: true,
+      message: `Successfully deleted all help topics (${result.deletedCount} items removed)`,
+      deletedCount: result.deletedCount
+    });
+  } catch (err) {
+    console.error('DELETE /api/help-topics/all error:', err);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to delete all help topics: ' + err.message
+    });
+  }
+});
+
+/**
+ * 6. POST /api/help-topics/reset-defaults
+ * Reset help topics to default set (Admin only)
+ */
+router.post('/reset-defaults', requireAdmin, async (req, res) => {
+  try {
+    const topics = await resetDefaultHelpTopics();
+    console.log(`✅ Help topics reset to defaults (${topics.length} items)`);
+    res.json({
+      success: true,
+      message: 'Help topics reset to defaults successfully',
+      topics
+    });
+  } catch (err) {
+    console.error('POST /api/help-topics/reset-defaults error:', err);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to reset help topics: ' + err.message
+    });
+  }
+});
+
+/**
+ * 7. DELETE /api/help-topics/:topicId
  * Delete a help topic (Admin only)
  */
 router.delete('/:topicId', requireAdmin, async (req, res) => {

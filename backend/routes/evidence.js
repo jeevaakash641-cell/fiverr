@@ -13,6 +13,8 @@ import {
   updateEvidenceRecord,
   updateEvidenceStatus,
   deleteEvidenceRecord,
+  deleteAllEvidenceRecords,
+  deleteMultipleEvidenceRecords,
   addEvidenceAttachment,
   removeEvidenceAttachment,
   getEvidenceAttachmentDownload
@@ -420,7 +422,46 @@ router.patch('/:evidenceId/status', async (req, res) => {
 });
 
 /**
- * 6. DELETE /api/evidence/:evidenceId
+ * 6a. DELETE /api/evidence/all
+ * Permanently delete all evidence records and attachments (Admin only)
+ */
+router.delete('/all', requireAdmin, async (req, res) => {
+  try {
+    const result = await deleteAllEvidenceRecords(req.adminUser || req.user);
+    res.status(200).json({
+      success: true,
+      ...result
+    });
+  } catch (err) {
+    console.error('DELETE /api/evidence/all error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * 6b. POST /api/evidence/bulk-delete
+ * Permanently delete multiple selected evidence records (Admin only)
+ */
+router.post('/bulk-delete', requireAdmin, async (req, res) => {
+  try {
+    const { evidenceIds } = req.body;
+    if (!Array.isArray(evidenceIds) || evidenceIds.length === 0) {
+      return res.status(400).json({ success: false, error: 'evidenceIds array is required' });
+    }
+
+    const result = await deleteMultipleEvidenceRecords(evidenceIds, req.adminUser || req.user);
+    res.status(200).json({
+      success: true,
+      ...result
+    });
+  } catch (err) {
+    console.error('POST /api/evidence/bulk-delete error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * 6c. DELETE /api/evidence/:evidenceId
  * Permanently delete an evidence record (and clean up S3 attachments)
  */
 router.delete('/:evidenceId', async (req, res) => {

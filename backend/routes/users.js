@@ -1,5 +1,5 @@
 import express from 'express';
-import { saveUser, getUserByEmail, updateUser, deleteUser } from '../services/userService.js';
+import { saveUser, getUserByEmail, updateUser, deleteUser, deleteAllLearners } from '../services/userService.js';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, ScanCommand } from '@aws-sdk/lib-dynamodb';
 import { requireAdmin, requireAuth } from '../middleware/auth.js';
@@ -244,6 +244,34 @@ router.patch('/:email', requireAuth, async (req, res) => {
   } catch (err) {
     console.error('PATCH user error:', err);
     res.status(500).json({ error: err.message });
+  }
+});
+
+/** DELETE /api/users/learners/all — delete all learner accounts (Admin only) */
+router.delete('/learners/all', requireAdmin, async (req, res) => {
+  try {
+    const result = await deleteAllLearners();
+    
+    await recordAdminAction({
+      admin: req.adminUser,
+      action: 'Deleted All Learners',
+      category: AuditCategories.LEARNER_MANAGEMENT,
+      targetType: 'Learners',
+      targetId: 'all',
+      targetName: `All Learners (${result.deletedCount} accounts)`,
+      result: 'Success',
+      description: `${req.adminUser?.name || req.adminUser?.email} deleted all learner accounts (${result.deletedCount} accounts deleted)`,
+      req
+    });
+
+    res.json({
+      success: true,
+      message: `Successfully deleted all learner accounts (${result.deletedCount} accounts deleted)`,
+      deletedCount: result.deletedCount
+    });
+  } catch (err) {
+    console.error('DELETE all learners error:', err);
+    res.status(500).json({ error: 'Failed to delete all learners: ' + err.message });
   }
 });
 

@@ -3,7 +3,7 @@
  * Passwords are hashed using a simple hash before storage.
  * NOTE: For production, use a proper backend with bcrypt.
  */
-import { syncUserToDb, updateUserInDb, deleteUserFromDb, fetchAllUsersFromDb } from '../services/userDbService.js'
+import { syncUserToDb, updateUserInDb, deleteUserFromDb, deleteAllLearnersFromDb, fetchAllUsersFromDb } from '../services/userDbService.js'
 import { generateSessionToken } from '../services/firebaseAuth.js'
 
 export { syncUserToDb }
@@ -222,6 +222,30 @@ export const deleteUserAccount = (email) => {
 
   const currentUser = getCurrentUser()
   if (currentUser && String(currentUser.email || '').trim().toLowerCase() === cleanEmail) {
+    logoutUser()
+  }
+  return true
+}
+
+export const deleteAllLearners = async () => {
+  const users = getRegisteredUsers()
+  // Retain admin/teacher accounts only
+  const preservedUsers = users.filter(u => {
+    const isTeacher = u.userType === 'teacher'
+    const isAdmin = u.role === 'admin' || u.isAdmin === true || String(u.email || '').trim().toLowerCase() === 'admin@onecommunityely.com'
+    return isTeacher || isAdmin
+  })
+  saveRegisteredUsers(preservedUsers)
+
+  // Trigger backend purge
+  try {
+    await deleteAllLearnersFromDb()
+  } catch (err) {
+    console.warn('Backend delete all learners warning:', err.message)
+  }
+
+  const currentUser = getCurrentUser()
+  if (currentUser && currentUser.userType !== 'teacher' && currentUser.role !== 'admin' && String(currentUser.email || '').trim().toLowerCase() !== 'admin@onecommunityely.com') {
     logoutUser()
   }
   return true

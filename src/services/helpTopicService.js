@@ -132,11 +132,51 @@ export async function deleteHelpTopic(topicId, user) {
   }
 }
 
+/**
+ * Delete all help topics (Admin only)
+ */
+export async function deleteAllHelpTopics(user) {
+  try {
+    const headers = await getAuthHeaders(user);
+    const res = await fetch(`${API_BASE_URL}/api/help-topics/all`, {
+      method: 'DELETE',
+      headers
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to delete all help topics');
+    return data;
+  } catch (err) {
+    console.error('deleteAllHelpTopics error:', err);
+    throw err;
+  }
+}
+
+/**
+ * Reset help topics to defaults (Admin only)
+ */
+export async function resetDefaultHelpTopics(user) {
+  try {
+    const headers = await getAuthHeaders(user);
+    const res = await fetch(`${API_BASE_URL}/api/help-topics/reset-defaults`, {
+      method: 'POST',
+      headers
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to reset help topics');
+    return data.topics || [];
+  } catch (err) {
+    console.error('resetDefaultHelpTopics error:', err);
+    throw err;
+  }
+}
+
 export default {
   DEFAULT_FALLBACK_TOPICS,
   fetchHelpTopics,
   fetchAdminHelpTopics,
   createHelpTopic,
   updateHelpTopic,
-  deleteHelpTopic
+  deleteHelpTopic,
+  deleteAllHelpTopics,
+  resetDefaultHelpTopics
 };

@@ -125,7 +125,7 @@ export async function getAllHelpTopics(includeInactive = false) {
     const result = await client.send(new ScanCommand({ TableName: TABLE_NAME }));
     let items = result.Items || [];
 
-    if (items.length === 0) {
+    if (items.length === 0 && !hasBeenExplicitlyCleared) {
       // Seed default topics in DynamoDB
       await seedDefaultHelpTopics();
       items = [...DEFAULT_HELP_TOPICS];
@@ -293,6 +293,45 @@ export async function deleteHelpTopic(topicId) {
   return existing;
 }
 
+let hasBeenExplicitlyCleared = false;
+
+/**
+ * Delete all help topics (Admin only)
+ */
+export async function deleteAllHelpTopics() {
+  const allTopics = await getAllHelpTopics(true);
+  const client = getClient();
+  let deletedCount = 0;
+
+  for (const topic of allTopics) {
+    if (!topic.topicId) continue;
+    try {
+      await client.send(new DeleteCommand({
+        TableName: TABLE_NAME,
+        Key: { topicId: topic.topicId }
+      }));
+      deletedCount++;
+    } catch (err) {
+      console.warn('DynamoDB deleteTopic error:', err.message);
+    }
+  }
+
+  memoryTopicsCache = [];
+  hasBeenExplicitlyCleared = true;
+  return { deletedCount };
+}
+
+/**
+ * Reset help topics back to defaults
+ */
+export async function resetDefaultHelpTopics() {
+  await deleteAllHelpTopics();
+  hasBeenExplicitlyCleared = false;
+  await seedDefaultHelpTopics();
+  memoryTopicsCache = [...DEFAULT_HELP_TOPICS];
+  return memoryTopicsCache;
+}
+
 export default {
   DEFAULT_HELP_TOPICS,
   getAllHelpTopics,
@@ -300,5 +339,7 @@ export default {
   createHelpTopic,
   updateHelpTopic,
   deleteHelpTopic,
+  deleteAllHelpTopics,
+  resetDefaultHelpTopics,
   seedDefaultHelpTopics
 };

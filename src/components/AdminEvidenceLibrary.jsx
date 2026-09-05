@@ -15,6 +15,8 @@ import {
   updateEvidence,
   updateEvidenceStatus,
   deleteEvidence,
+  deleteAllEvidence,
+  bulkDeleteEvidence,
   uploadEvidenceAttachment,
   deleteEvidenceAttachment,
   downloadEvidenceAttachment,
@@ -102,6 +104,14 @@ const AdminEvidenceLibrary = () => {
   const [targetRecord, setTargetRecord] = useState(null);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [actionProcessing, setActionProcessing] = useState(false);
+
+  // Multi-Selection and Bulk Deletion State
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [deleteAllModalOpen, setDeleteAllModalOpen] = useState(false);
+  const [deleteAllConfirmText, setDeleteAllConfirmText] = useState('');
+  const [deletingAll, setDeletingAll] = useState(false);
+  const [bulkDeleteModalOpen, setBulkDeleteModalOpen] = useState(false);
+  const [deletingBulk, setDeletingBulk] = useState(false);
 
   // Dual-source Dashboard Tab ('all' | 'automatic' | 'manual' | 'archived')
   const [sourceTab, setSourceTab] = useState('all');
@@ -554,6 +564,57 @@ const AdminEvidenceLibrary = () => {
     }
   };
 
+  // Selection handlers
+  const handleToggleSelect = (id) => {
+    setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  };
+
+  const handleToggleSelectAll = () => {
+    if (selectedIds.length === evidenceList.length) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(evidenceList.map(e => e.evidenceId));
+    }
+  };
+
+  // Bulk Delete Action
+  const handleConfirmBulkDelete = async () => {
+    if (selectedIds.length === 0) return;
+    setDeletingBulk(true);
+    try {
+      const res = await bulkDeleteEvidence(selectedIds, user);
+      showAlert('success', `Successfully deleted ${res.deletedCount || selectedIds.length} selected evidence records.`);
+      setBulkDeleteModalOpen(false);
+      setSelectedIds([]);
+      loadData(currentPage);
+    } catch (err) {
+      showAlert('error', 'Bulk deletion failed: ' + err.message);
+    } finally {
+      setDeletingBulk(false);
+    }
+  };
+
+  // Delete All Records Action
+  const handleConfirmDeleteAll = async () => {
+    if (deleteAllConfirmText.trim().toLowerCase() !== 'delete') {
+      showAlert('error', 'Please type DELETE to confirm permanent deletion.');
+      return;
+    }
+    setDeletingAll(true);
+    try {
+      const res = await deleteAllEvidence(user);
+      showAlert('success', `Successfully purged ${res.deletedCount} evidence records.`);
+      setDeleteAllModalOpen(false);
+      setDeleteAllConfirmText('');
+      setSelectedIds([]);
+      loadData(1);
+    } catch (err) {
+      showAlert('error', 'Delete all evidence failed: ' + err.message);
+    } finally {
+      setDeletingAll(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 pb-20">
       {/* Header */}
@@ -608,6 +669,15 @@ const AdminEvidenceLibrary = () => {
               <Award className="h-4 w-4" />
               <span>Impact Reports</span>
             </Link>
+
+            <button
+              onClick={() => { setDeleteAllConfirmText(''); setDeleteAllModalOpen(true); }}
+              className="px-3.5 py-2 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 text-xs font-bold rounded-xl transition-colors inline-flex items-center gap-1.5 cursor-pointer shadow-2xs"
+              title="Permanently delete all evidence records and purge storage"
+            >
+              <Trash2 className="h-4 w-4 text-red-600" />
+              <span>Delete All</span>
+            </button>
 
             <button
               onClick={handleOpenCreate}
@@ -839,6 +909,33 @@ const AdminEvidenceLibrary = () => {
           </div>
         </div>
 
+        {/* Bulk Selection Action Bar */}
+        {selectedIds.length > 0 && (
+          <div className="bg-emerald-50 border border-emerald-200 p-3 rounded-xl flex items-center justify-between gap-3 animate-in fade-in duration-150">
+            <div className="flex items-center gap-2 text-xs font-bold text-emerald-900">
+              <Check className="h-4 w-4 text-emerald-600" />
+              <span>{selectedIds.length} record(s) selected</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setSelectedIds([])}
+                className="px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-emerald-100/60 rounded-lg cursor-pointer transition-colors"
+              >
+                Deselect All
+              </button>
+              <button
+                type="button"
+                onClick={() => setBulkDeleteModalOpen(true)}
+                className="px-3.5 py-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded-lg shadow-xs cursor-pointer flex items-center gap-1.5 transition-colors"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                <span>Delete Selected ({selectedIds.length})</span>
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Evidence Table */}
         <div className="bg-white rounded-2xl border border-gray-200 shadow-xs overflow-hidden">
           {loading ? (
@@ -870,6 +967,15 @@ const AdminEvidenceLibrary = () => {
               <table className="w-full text-left text-xs">
                 <thead className="bg-gray-50 border-b border-gray-200 text-gray-600 uppercase text-[10px] font-black tracking-wider">
                   <tr>
+                    <th className="py-3.5 px-3 w-10 text-center">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.length === evidenceList.length && evidenceList.length > 0}
+                        onChange={handleToggleSelectAll}
+                        className="rounded border-gray-300 text-[#23735F] focus:ring-[#23735F] cursor-pointer"
+                        title="Select/Deselect All"
+                      />
+                    </th>
                     <th className="py-3.5 px-4">Activity Title</th>
                     <th className="py-3.5 px-4">Category</th>
                     <th className="py-3.5 px-4">Activity Date</th>
@@ -885,9 +991,18 @@ const AdminEvidenceLibrary = () => {
                     const isArchived = item.status === 'archived';
                     const attCount = (item.attachments || []).length;
                     const linksCount = (item.socialLinks || []).length + (item.podcastLinks || []).length + (item.videoLinks || []).length;
+                    const isSelected = selectedIds.includes(item.evidenceId);
 
                     return (
-                      <tr key={item.evidenceId} className="hover:bg-gray-50/70 transition-colors">
+                      <tr key={item.evidenceId} className={`hover:bg-gray-50/70 transition-colors ${isSelected ? 'bg-emerald-50/40' : ''}`}>
+                        <td className="py-3 px-3 text-center">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => handleToggleSelect(item.evidenceId)}
+                            className="rounded border-gray-300 text-[#23735F] focus:ring-[#23735F] cursor-pointer"
+                          />
+                        </td>
                         <td className="py-3 px-4">
                           <div className="flex items-center gap-1.5 mb-1">
                             {item.source === 'automatic' ? (
@@ -2123,7 +2238,7 @@ const AdminEvidenceLibrary = () => {
             <div className="flex items-center justify-end gap-2 pt-2 border-t border-gray-100">
               <button
                 onClick={() => { setDeleteModalOpen(false); setTargetRecord(null); setDeleteConfirmText(''); }}
-                className="px-4 py-2 text-xs font-bold text-gray-600 hover:bg-gray-100 rounded-lg"
+                className="px-4 py-2 text-xs font-bold text-gray-600 hover:bg-gray-100 rounded-lg cursor-pointer"
               >
                 Cancel
               </button>
@@ -2133,6 +2248,83 @@ const AdminEvidenceLibrary = () => {
                 className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded-lg shadow-xs disabled:opacity-40 cursor-pointer"
               >
                 {actionProcessing ? 'Deleting...' : 'Permanently Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* BULK DELETION MODAL */}
+      {bulkDeleteModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 border-2 border-red-500">
+            <div className="flex items-center gap-2.5 text-red-600">
+              <Trash2 className="h-5 w-5" />
+              <h3 className="text-sm font-black text-red-700">Delete Selected Records ({selectedIds.length})</h3>
+            </div>
+
+            <p className="text-xs text-red-800 leading-relaxed font-semibold">
+              Warning: This will permanently delete <strong>{selectedIds.length} selected evidence record(s)</strong> and all associated attachments from storage. This action cannot be undone.
+            </p>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-gray-100">
+              <button
+                onClick={() => setBulkDeleteModalOpen(false)}
+                className="px-4 py-2 text-xs font-bold text-gray-600 hover:bg-gray-100 rounded-lg cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                disabled={deletingBulk}
+                onClick={handleConfirmBulkDelete}
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded-lg shadow-xs disabled:opacity-50 cursor-pointer"
+              >
+                {deletingBulk ? 'Deleting Selected...' : `Delete ${selectedIds.length} Records`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* PURGE ALL EVIDENCE RECORDS MODAL */}
+      {deleteAllModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 border-2 border-red-500">
+            <div className="flex items-center gap-2.5 text-red-600">
+              <Trash2 className="h-5 w-5" />
+              <h3 className="text-sm font-black text-red-700">Delete All Evidence Records</h3>
+            </div>
+
+            <p className="text-xs text-red-800 leading-relaxed font-semibold">
+              CRITICAL: This will permanently wipe <strong>all manual entries, verified platform activities, and file attachments</strong> across the Evidence Library. This action cannot be undone.
+            </p>
+
+            <div>
+              <label className="block text-[11px] font-bold text-gray-700 mb-1">
+                Type <strong>DELETE</strong> below to confirm:
+              </label>
+              <input
+                type="text"
+                placeholder="DELETE"
+                value={deleteAllConfirmText}
+                onChange={(e) => setDeleteAllConfirmText(e.target.value)}
+                className="w-full p-2.5 border border-red-300 rounded-xl text-xs outline-none focus:ring-2 focus:ring-red-500 bg-white"
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-gray-100">
+              <button
+                onClick={() => { setDeleteAllModalOpen(false); setDeleteAllConfirmText(''); }}
+                className="px-4 py-2 text-xs font-bold text-gray-600 hover:bg-gray-100 rounded-lg cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                disabled={deletingAll || deleteAllConfirmText.trim().toLowerCase() !== 'delete'}
+                onClick={handleConfirmDeleteAll}
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded-lg shadow-xs disabled:opacity-40 cursor-pointer"
+              >
+                {deletingAll ? 'Purging Evidence...' : 'Permanently Delete All'}
               </button>
             </div>
           </div>

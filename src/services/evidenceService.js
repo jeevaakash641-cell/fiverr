@@ -186,6 +186,41 @@ export async function deleteEvidence(evidenceId, user = null) {
 }
 
 /**
+ * Permanently delete ALL evidence records (Admin only)
+ */
+export async function deleteAllEvidence(user = null) {
+  const headers = await getAuthHeaders(user);
+  const res = await fetch(`${API_BASE_URL}/api/evidence/all`, {
+    method: 'DELETE',
+    headers
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || !data.success) {
+    throw new Error(data.error || `Failed to delete all evidence records (${res.status})`);
+  }
+  return data;
+}
+
+/**
+ * Permanently delete multiple selected evidence records (Admin only)
+ */
+export async function bulkDeleteEvidence(evidenceIds = [], user = null) {
+  const headers = await getAuthHeaders(user);
+  const res = await fetch(`${API_BASE_URL}/api/evidence/bulk-delete`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ evidenceIds })
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || !data.success) {
+    throw new Error(data.error || `Failed to delete selected evidence records (${res.status})`);
+  }
+  return data;
+}
+
+/**
  * 7. Upload attachment to evidence record
  */
 export async function uploadEvidenceAttachment(evidenceId, file, description = '', user = null) {
