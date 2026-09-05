@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/png" href="/logo.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
+    <title>One Community Ely - Online Training Centre</title>
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Auto Cache Buster -->
+    <script>
+      // Version number - increment this when you make changes
+      const APP_VERSION = '3.0.1';
+      const STORED_VERSION = localStorage.getItem('app_version');
+      
+      // If version changed, clear cache and reload
+      if (STORED_VERSION && STORED_VERSION !== APP_VERSION) {
+        console.log('🔄 New version detected! Clearing cache...');
+        
+        // Clear all caches
+        if ('caches' in window) {
+          caches.keys().then(names => {
+            names.forEach(name => caches.delete(name));
+          });
+        }
+        
+        // Clear service workers
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.getRegistrations().then(registrations => {
+            registrations.forEach(registration => registration.unregister());
+          });
+        }
+        
+        // Update version
+        localStorage.setItem('app_version', APP_VERSION);
+        
+        // Force reload
+        window.location.reload(true);
+      } else if (!STORED_VERSION) {
+        // First time visit
+        localStorage.setItem('app_version', APP_VERSION);
+      }
+      
+      // Mobile error detection
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      
+      // Catch early errors on mobile
+      window.addEventListener('error', function(e) {
+        console.error('Early error detected:', e.message);
+        if (isMobile && e.message) {
+          localStorage.setItem('early_error', JSON.stringify({
+            message: e.message,
+            filename: e.filename,
+            lineno: e.lineno,
+            timestamp: new Date().toISOString()
+          }));
+        }
+      });
+      
+      // Check if mobile had previous error
+      if (isMobile) {
+        const lastError = localStorage.getItem('last_error');
+        if (lastError) {
+          console.warn('Previous mobile error detected:', lastError);
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    
+    <script>
+      // Version tracking
+      const CURRENT_VERSION = '3.0.1';
+      const storedVer = localStorage.getItem('app_version');
+      
+      // Update version if needed
+      if (!storedVer || storedVer !== CURRENT_VERSION) {
+        localStorage.setItem('app_version', CURRENT_VERSION);
+      }
+    </script>
+    
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

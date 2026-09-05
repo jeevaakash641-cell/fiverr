@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>Mobile Test - One Community Ely</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #D8F7A5 0%, #289B8C 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: white;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        h1 {
+            font-size: 24px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .status-box {
+            background: white;
+            color: #333;
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 15px;
+        }
+        .status-box h3 {
+            margin-bottom: 10px;
+            color: #23735F;
+        }
+        .status-box p {
+            margin: 5px 0;
+            font-size: 14px;
+        }
+        .btn {
+            width: 100%;
+            padding: 16px;
+            background: white;
+            color: #23735F;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 10px;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+        .btn:active {
+            transform: scale(0.98);
+        }
+        .btn.danger {
+            background: #ef4444;
+            color: white;
+        }
+        .log {
+            background: rgba(0,0,0,0.3);
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .log-item {
+            margin-bottom: 5px;
+            padding: 5px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 4px;
+        }
+        .success { color: #10b981; }
+        .error { color: #ef4444; }
+        .info { color: #60a5fa; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>ÃƒÂ°Ã…Â¸Ã¢â‚¬Å“Ã‚Â± Mobile Diagnostic Test</h1>
+        
+        <div class="status-box">
+            <h3>Device Info</h3>
+            <p><strong>User Agent:</strong> <span id="userAgent">-</span></p>
+            <p><strong>Screen Size:</strong> <span id="screenSize">-</span></p>
+            <p><strong>Viewport:</strong> <span id="viewport">-</span></p>
+            <p><strong>Touch Support:</strong> <span id="touchSupport">-</span></p>
+            <p><strong>Platform:</strong> <span id="platform">-</span></p>
+        </div>
+        
+        <div class="status-box">
+            <h3>Browser Features</h3>
+            <p><strong>localStorage:</strong> <span id="localStorage">-</span></p>
+            <p><strong>Service Workers:</strong> <span id="serviceWorker">-</span></p>
+            <p><strong>Cache API:</strong> <span id="cacheAPI">-</span></p>
+            <p><strong>Web Speech API:</strong> <span id="speechAPI">-</span></p>
+        </div>
+        
+        <button class="btn danger" onclick="clearAllCache()">ÃƒÂ°Ã…Â¸Ã¢â‚¬â€Ã¢â‚¬ËœÃƒÂ¯Ã‚Â¸Ã‚Â Clear All Cache</button>
+        <button class="btn" onclick="testMainApp()">ÃƒÂ°Ã…Â¸Ã‚ÂÃ‚Â  Test Main App</button>
+        <button class="btn" onclick="goToRefresh()">ÃƒÂ¢Ã…Â¡Ã‚Â¡ Go to Refresh Page</button>
+        
+        <div class="log" id="log"></div>
+    </div>
+
+    <script>
+        const log = document.getElementById('log');
+        
+        function addLog(message, type = 'info') {
+            const item = document.createElement('div');
+            item.className = `log-item ${type}`;
+            item.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            log.insertBefore(item, log.firstChild);
+        }
+        
+        // Capture all errors
+        window.onerror = function(msg, url, line, col, error) {
+            addLog(`ERROR: ${msg} at ${line}:${col}`, 'error');
+            return false;
+        };
+        
+        window.onunhandledrejection = function(event) {
+            addLog(`PROMISE ERROR: ${event.reason}`, 'error');
+        };
+        
+        // Get device info
+        function getDeviceInfo() {
+            document.getElementById('userAgent').textContent = navigator.userAgent.substring(0, 50) + '...';
+            document.getElementById('screenSize').textContent = `${screen.width}x${screen.height}`;
+            document.getElementById('viewport').textContent = `${window.innerWidth}x${window.innerHeight}`;
+            document.getElementById('touchSupport').textContent = 'ontouchstart' in window ? 'ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ Yes' : 'ÃƒÂ¢Ã‚ÂÃ…â€™ No';
+            document.getElementById('platform').textContent = navigator.platform;
+            
+            document.getElementById('localStorage').textContent = typeof localStorage !== 'undefined' ? 'ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ Yes' : 'ÃƒÂ¢Ã‚ÂÃ…â€™ No';
+            document.getElementById('serviceWorker').textContent = 'serviceWorker' in navigator ? 'ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ Yes' : 'ÃƒÂ¢Ã‚ÂÃ…â€™ No';
+            document.getElementById('cacheAPI').textContent = 'caches' in window ? 'ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ Yes' : 'ÃƒÂ¢Ã‚ÂÃ…â€™ No';
+            document.getElementById('speechAPI').textContent = 'webkitSpeechRecognition' in window || 'SpeechRecognition' in window ? 'ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ Yes' : 'ÃƒÂ¢Ã‚ÂÃ…â€™ No';
+            
+            addLog('Device info loaded', 'success');
+        }
+        
+        async function clearAllCache() {
+            addLog('Starting cache clear...', 'info');
+            
+            try {
+                // Clear localStorage
+                localStorage.clear();
+                sessionStorage.clear();
+                addLog('ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ Storage cleared', 'success');
+                
+                // Clear caches
+                if ('caches' in window) {
+                    const names = await caches.keys();
+                    addLog(`Found ${names.length} caches`, 'info');
+                    await Promise.all(names.map(n => caches.delete(n)));
+                    addLog('ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ Caches cleared', 'success');
+                }
+                
+                // Unregister service workers
+                if ('serviceWorker' in navigator) {
+                    const regs = await navigator.serviceWorker.getRegistrations();
+                    addLog(`Found ${regs.length} service workers`, 'info');
+                    await Promise.all(regs.map(r => r.unregister()));
+                    addLog('ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ Service workers unregistered', 'success');
+                }
+                
+                localStorage.setItem('app_version', '2.0.0');
+                addLog('ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ Cache clear complete!', 'success');
+                
+                setTimeout(() => {
+                    addLog('Redirecting to main app...', 'info');
+                    window.location.href = '/';
+                }, 1500);
+                
+            } catch (error) {
+                addLog(`ÃƒÂ¢Ã‚ÂÃ…â€™ Error: ${error.message}`, 'error');
+            }
+        }
+        
+        function testMainApp() {
+            addLog('Testing main app...', 'info');
+            window.location.href = '/';
+        }
+        
+        function goToRefresh() {
+            addLog('Going to refresh page...', 'info');
+            window.location.href = '/refresh.html';
+        }
+        
+        // Initialize
+        getDeviceInfo();
+        addLog('Mobile test page loaded', 'success');
+        
+        // Check if coming from main app error
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('error') === 'true') {
+            addLog('ÃƒÂ¢Ã…Â¡Ã‚Â ÃƒÂ¯Ã‚Â¸Ã‚Â Redirected from main app error', 'error');
+        }
+    </script>
+</body>
+</html>

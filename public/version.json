@@ -1,0 +1,11 @@
+{
+  "version": "2.0.0",
+  "timestamp": "2026-02-08T19:30:00Z",
+  "features": [
+    "Voice recording with Web Speech API",
+    "Dual-language responses (Telugu + English)",
+    "Automatic cache busting",
+    "10+ language support"
+  ],
+  "forceUpdate": true
+}
