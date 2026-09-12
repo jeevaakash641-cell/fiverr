@@ -6,13 +6,15 @@ import {
   StickyNote, Clock, Volume2, VolumeX, Search, Filter, 
   Book, Sparkles, Copy, Check, RefreshCw, Plus, Paperclip, 
   FileText, X, Video, ExternalLink, Maximize2, Minimize2,
-  Sliders, Type, ZoomIn, ZoomOut, CheckCircle2, ChevronRight
+  Sliders, Type, ZoomIn, ZoomOut, CheckCircle2, ChevronRight,
+  MessageSquare, PanelLeft, PanelLeftClose
 } from 'lucide-react'
 import { getBedrockResponse, getBedrockResponseWithTranslation } from '../services/bedrockService'
 import { VoiceRecognitionService, getLanguageCode } from '../services/voiceService'
 import { fetchCourses } from '../services/courseService'
 import NotesPanel from './NotesPanel'
 import SubjectHelper from './SubjectHelper'
+import AIRecentChatsSidebar from './AIRecentChatsSidebar'
 import { historyService } from '../services/historyService'
 import { useBilingualAI } from '../hooks/useBilingualAI'
 import BilingualMessage from './BilingualMessage'
@@ -31,6 +33,116 @@ const AIAssistant = () => {
   const [voiceError, setVoiceError] = useState(null)
   const [showNotes, setShowNotes] = useState(false)
   const [copiedId, setCopiedId] = useState(null)
+
+  // Recents Chat Sessions Management
+  const [showRecentsSidebar, setShowRecentsSidebar] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return window.innerWidth >= 768
+    }
+    return true
+  })
+
+  const getInitialWelcomeMessage = (userName) => ({
+    id: `welcome-${Date.now()}`,
+    type: 'ai',
+    content: `Hello ${userName || 'Learner'}! 👋 I am your One Community Ely AI Learning Assistant in Ely, Cardiff. You can ask me questions about your courses, employability, practical digital skills, and community topics. Feel free to type, use voice dictation, or upload questions!`,
+    timestamp: new Date().toISOString()
+  })
+
+  // Load persisted sessions or seed default learning sessions
+  const [sessions, setSessions] = useState(() => {
+    try {
+      const userKey = user?.id || user?.email || 'default'
+      const saved = localStorage.getItem(`ai_sessions_${userKey}`)
+      if (saved) {
+        const parsed = JSON.parse(saved)
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to parse saved AI sessions:', e)
+    }
+
+    const defaultSessionId = `session_${Date.now()}`
+    return [
+      {
+        id: defaultSessionId,
+        title: 'New AI Conversation',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        courseId: location.state?.courseId || '',
+        messages: [
+          {
+            id: Date.now(),
+            type: 'ai',
+            content: `Hello ${user?.name || 'Learner'}! 👋 I am your One Community Ely AI Learning Assistant in Ely, Cardiff. You can ask me questions about your courses, employability, practical digital skills, and community topics. Feel free to type, use voice dictation, or upload questions!`
+          }
+        ]
+      },
+      {
+        id: `session_seed_1`,
+        title: 'Fix Lesson Editor Crash',
+        createdAt: new Date(Date.now() - 3600000).toISOString(),
+        updatedAt: new Date(Date.now() - 3600000).toISOString(),
+        courseId: '',
+        messages: [
+          {
+            id: 101,
+            type: 'user',
+            content: 'How do we fix the lesson editor crash when pasting rich text content?'
+          },
+          {
+            id: 102,
+            type: 'ai',
+            content: 'The lesson editor crash occurs when accessing innerHTML on unmounted DOM nodes. We resolve this by sanitizing pasted content through DOMParser with an allowed-tag whitelist and wrapping the editor inside a React Error Boundary.'
+          }
+        ]
+      },
+      {
+        id: `session_seed_2`,
+        title: 'Solar agarbatti dryer design',
+        createdAt: new Date(Date.now() - 86400000).toISOString(),
+        updatedAt: new Date(Date.now() - 86400000).toISOString(),
+        courseId: '',
+        messages: [
+          {
+            id: 103,
+            type: 'user',
+            content: 'Explain the principles of a solar agarbatti dryer design.'
+          },
+          {
+            id: 104,
+            type: 'ai',
+            content: 'A solar agarbatti dryer uses indirect solar thermal radiation and natural convection airflow through perforated mesh trays to gently evaporate moisture without degrading fragrance oils or bending the sticks.'
+          }
+        ]
+      },
+      {
+        id: `session_seed_3`,
+        title: 'How to Run a Market Stall',
+        createdAt: new Date(Date.now() - 172800000).toISOString(),
+        updatedAt: new Date(Date.now() - 172800000).toISOString(),
+        courseId: '',
+        messages: [
+          {
+            id: 105,
+            type: 'user',
+            content: 'What are the first steps to set up a community market stall in Ely, Cardiff?'
+          },
+          {
+            id: 106,
+            type: 'ai',
+            content: 'First, coordinate with the Ely community market coordinator to verify pitch allocations, ensure your canopy weights meet local council safety standards, and display your trader permit visibly.'
+          }
+        ]
+      }
+    ]
+  })
+
+  const [activeSessionId, setActiveSessionId] = useState(() => {
+    return sessions[0]?.id || `session_${Date.now()}`
+  })
 
   // Course & Curriculum Context for AI Grounding
   const [coursesList, setCoursesList] = useState([])
@@ -160,20 +272,98 @@ const AIAssistant = () => {
     setTimeout(() => setCopiedId(null), 2000)
   }
 
-  // Check Auth & Initial Welcome
+  // Check Auth
   useEffect(() => {
     if (!user) {
       navigate('/login')
-      return
     }
-    setMessages([
-      {
-        id: Date.now(),
-        type: 'ai',
-        content: `Hello ${user.name || 'Learner'}! 👋 I am your One Community Ely AI Learning Assistant in Ely, Cardiff. You can ask me questions about your courses, employability, practical digital skills, and community topics. Feel free to type, use voice dictation, or upload questions!`
-      }
-    ])
   }, [user, navigate])
+
+  // Save sessions to localStorage whenever sessions change
+  useEffect(() => {
+    if (!user) return
+    try {
+      const userKey = user?.id || user?.email || 'default'
+      localStorage.setItem(`ai_sessions_${userKey}`, JSON.stringify(sessions))
+    } catch (e) {
+      console.warn('Failed to save AI sessions to storage:', e)
+    }
+  }, [sessions, user])
+
+  // Sync active session messages and course context to state
+  useEffect(() => {
+    const current = sessions.find(s => s.id === activeSessionId)
+    if (current && Array.isArray(current.messages)) {
+      setMessages(current.messages)
+      if (current.courseId) {
+        setSelectedCourseId(current.courseId)
+      }
+    } else if (!current && sessions.length > 0) {
+      setActiveSessionId(sessions[0].id)
+    }
+  }, [activeSessionId, sessions])
+
+  // Session Handlers
+  const handleSelectSession = (sessionId) => {
+    setActiveSessionId(sessionId)
+  }
+
+  const handleNewChat = () => {
+    const newId = `session_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`
+    const newSession = {
+      id: newId,
+      title: 'New AI Conversation',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      courseId: selectedCourseId || '',
+      messages: [getInitialWelcomeMessage(user?.name)]
+    }
+    setSessions(prev => [newSession, ...prev])
+    setActiveSessionId(newId)
+    setInputText('')
+    setAttachments([])
+  }
+
+  const handleDeleteSession = (sessionId) => {
+    setSessions(prev => {
+      const remaining = prev.filter(s => s.id !== sessionId)
+      if (remaining.length === 0) {
+        const freshId = `session_${Date.now()}`
+        const freshSession = {
+          id: freshId,
+          title: 'New AI Conversation',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          courseId: '',
+          messages: [getInitialWelcomeMessage(user?.name)]
+        }
+        setActiveSessionId(freshId)
+        return [freshSession]
+      }
+      if (activeSessionId === sessionId) {
+        setActiveSessionId(remaining[0].id)
+      }
+      return remaining
+    })
+  }
+
+  const handleRenameSession = (sessionId, newTitle) => {
+    setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, title: newTitle, updatedAt: new Date().toISOString() } : s))
+  }
+
+  const handleClearAllSessions = () => {
+    const freshId = `session_${Date.now()}`
+    const freshSession = {
+      id: freshId,
+      title: 'New AI Conversation',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      courseId: '',
+      messages: [getInitialWelcomeMessage(user?.name)]
+    }
+    setSessions([freshSession])
+    setActiveSessionId(freshId)
+  }
 
   // Load Courses for Context Grounding
   useEffect(() => {
@@ -390,6 +580,25 @@ const AIAssistant = () => {
 
       setMessages(prev => [...prev, newAiMessage])
 
+      // Update session in sessions array for Recents sidebar
+      setSessions(prev => prev.map(session => {
+        if (session.id === activeSessionId) {
+          let title = session.title
+          if (!title || title === 'New AI Conversation' || title === 'Untitled Conversation') {
+            const rawTitle = text || (attachments[0]?.name ? `File: ${attachments[0].name}` : 'AI Chat')
+            title = rawTitle.length > 32 ? rawTitle.slice(0, 32).trim() + '...' : rawTitle
+          }
+          return {
+            ...session,
+            title,
+            updatedAt: new Date().toISOString(),
+            courseId: selectedCourseId || session.courseId,
+            messages: [...(session.messages || []), newUserMessage, newAiMessage]
+          }
+        }
+        return session
+      }))
+
       // Save to History
       try {
         historyService.saveAIInteraction(user.id || user.email, {
@@ -410,6 +619,17 @@ const AIAssistant = () => {
         content: '⚠️ I encountered an error retrieving the explanation. Please verify your connection or try rephrasing your question.'
       }
       setMessages(prev => [...prev, errorMsg])
+
+      setSessions(prev => prev.map(session => {
+        if (session.id === activeSessionId) {
+          return {
+            ...session,
+            updatedAt: new Date().toISOString(),
+            messages: [...(session.messages || []), newUserMessage, errorMsg]
+          }
+        }
+        return session
+      }))
     } finally {
       setIsLoading(false)
     }
@@ -668,6 +888,20 @@ const AIAssistant = () => {
                 {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
               </button>
               
+              {/* Recents Toggle Button */}
+              <button
+                onClick={() => setShowRecentsSidebar(!showRecentsSidebar)}
+                className={`flex items-center space-x-1.5 px-3 py-2 rounded-lg transition-colors border text-sm font-semibold shadow-xs cursor-pointer ${
+                  showRecentsSidebar 
+                    ? 'bg-gray-900 text-white border-gray-900' 
+                    : 'bg-white text-gray-700 hover:bg-gray-100 border-gray-200'
+                }`}
+                title="Toggle Recent Chats Sidebar"
+              >
+                <MessageSquare className="h-4 w-4 text-sky-400" />
+                <span className="hidden sm:inline">Recents</span>
+              </button>
+
               <Link
                 to="/ai-history"
                 className="flex items-center space-x-2 px-3 md:px-4 py-2 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg transition-colors border border-blue-200 text-sm font-semibold shadow-xs"
@@ -732,18 +966,44 @@ const AIAssistant = () => {
           />
         )}
 
-        {/* Main Chat & Notes Area */}
-        <div className={`grid ${showNotes ? 'grid-cols-1 lg:grid-cols-3' : 'grid-cols-1'} gap-4 flex-1 h-full`}>
-          {/* Chat Window */}
-          <div className={`${showNotes ? 'lg:col-span-2' : 'col-span-1'} bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col ${isFullscreen ? 'h-[calc(100vh-100px)]' : 'h-[calc(100vh-230px)] min-h-[520px]'}`}>
-            {/* Header info strip inside chat container with Quick Controls */}
-            <div className="px-4 md:px-5 py-2.5 border-b border-gray-200 bg-gray-50 flex items-center justify-between flex-shrink-0">
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                <span className="text-xs font-semibold text-gray-700">Live AI Session</span>
-                <span className="text-xs text-gray-400">•</span>
-                <span className="text-xs text-gray-500">Language: {user.mediumName || 'English'}</span>
-              </div>
+        {/* Main Workspace Area with Recent Chats Sidebar */}
+        <div className="flex gap-3.5 flex-1 h-full items-start">
+          {!isFullscreen && (
+            <AIRecentChatsSidebar
+              sessions={sessions}
+              activeSessionId={activeSessionId}
+              onSelectSession={handleSelectSession}
+              onNewChat={handleNewChat}
+              onDeleteSession={handleDeleteSession}
+              onRenameSession={handleRenameSession}
+              onClearAll={handleClearAllSessions}
+              isOpen={showRecentsSidebar}
+              onToggle={() => setShowRecentsSidebar(!showRecentsSidebar)}
+            />
+          )}
+
+          {/* Main Chat & Notes Area */}
+          <div className={`grid ${showNotes ? 'grid-cols-1 lg:grid-cols-3' : 'grid-cols-1'} gap-4 flex-1 h-full min-w-0`}>
+            {/* Chat Window */}
+            <div className={`${showNotes ? 'lg:col-span-2' : 'col-span-1'} bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col ${isFullscreen ? 'h-[calc(100vh-100px)]' : 'h-[calc(100vh-230px)] min-h-[520px]'}`}>
+              {/* Header info strip inside chat container with Quick Controls */}
+              <div className="px-4 md:px-5 py-2.5 border-b border-gray-200 bg-gray-50 flex items-center justify-between flex-shrink-0">
+                <div className="flex items-center gap-2">
+                  {!showRecentsSidebar && !isFullscreen && (
+                    <button
+                      onClick={() => setShowRecentsSidebar(true)}
+                      className="p-1 hover:bg-gray-200 rounded-lg text-gray-700 cursor-pointer mr-1 flex items-center gap-1 text-xs font-semibold"
+                      title="Show Recent Chats"
+                    >
+                      <PanelLeft className="h-4 w-4 text-sky-600" />
+                      <span className="hidden sm:inline text-gray-600">Recents</span>
+                    </button>
+                  )}
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                  <span className="text-xs font-semibold text-gray-700">Live AI Session</span>
+                  <span className="text-xs text-gray-400">•</span>
+                  <span className="text-xs text-gray-500">Language: {user.mediumName || 'English'}</span>
+                </div>
 
               {/* Right Quick Controls: Font Size toggles + Fullscreen + Reset */}
               <div className="flex items-center gap-2">
@@ -1053,7 +1313,8 @@ const AIAssistant = () => {
             </div>
           )}
         </div>
-      </main>
+      </div>
+    </main>
 
       {/* Video URL Modal Dialog */}
       {showVideoModal && (
