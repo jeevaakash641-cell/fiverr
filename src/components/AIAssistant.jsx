@@ -18,6 +18,7 @@ import AIRecentChatsSidebar from './AIRecentChatsSidebar'
 import { historyService } from '../services/historyService'
 import { useBilingualAI } from '../hooks/useBilingualAI'
 import BilingualMessage from './BilingualMessage'
+import { renderFormattedAIContent, renderInlineMarkdown } from '../utils/aiMarkdownFormatter'
 
 const AIAssistant = () => {
   const { user } = useAuth()
@@ -242,7 +243,7 @@ const AIAssistant = () => {
 
     // Clean formatting and remove emojis for natural reading
     const cleanText = text
-      .replace(/\*\*/g, '')
+      .replace(/\*/g, '')
       .replace(/Step \d+:/g, '')
       .replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '')
       .replace(/•/g, '')
@@ -266,7 +267,7 @@ const AIAssistant = () => {
 
   // Copy Message Text
   const handleCopyText = (messageId, text) => {
-    const cleanText = text.replace(/\*\*/g, '').trim()
+    const cleanText = text.replace(/\*/g, '').trim()
     navigator.clipboard.writeText(cleanText)
     setCopiedId(messageId)
     setTimeout(() => setCopiedId(null), 2000)
@@ -1076,47 +1077,7 @@ const AIAssistant = () => {
                         />
                       ) : (
                         <div className={`prose max-w-none text-gray-800 pr-12 ${fontStyles.prose}`}>
-                          {message.content.split('\n').map((line, index) => {
-                            if (line.startsWith('**') && line.endsWith('**')) {
-                              return (
-                                <h3 key={index} className={fontStyles.heading}>
-                                  {line.replace(/\*\*/g, '')}
-                                </h3>
-                              )
-                            }
-                            if (line.match(/^(Step \d+:|Final Answer:|Key Concept:|Common Mistake:)/)) {
-                              return (
-                                <p key={index} className={`font-bold text-emerald-800 my-1 bg-emerald-50 px-2.5 py-1 rounded ${fontStyles.text}`}>
-                                  {line}
-                                </p>
-                              )
-                            }
-                            if (line.trim().startsWith('•') || line.trim().startsWith('-') || line.trim().startsWith('*')) {
-                              return (
-                                <li key={index} className={`ml-4 text-gray-700 list-disc my-0.5 ${fontStyles.text}`}>
-                                  {renderLineWithMarkdown(line, true)}
-                                </li>
-                              )
-                            }
-                            if (line.trim() === '---') {
-                              return <hr key={index} className="my-3 border-gray-200" />
-                            }
-                            if (line.includes('=') || line.includes('÷') || line.includes('×')) {
-                              return (
-                                <p key={index} className={`my-1.5 ${fontStyles.math}`}>
-                                  {line}
-                                </p>
-                              )
-                            }
-                            if (line.trim()) {
-                              return (
-                                <p key={index} className={`text-gray-800 leading-relaxed my-1.5 ${fontStyles.text}`}>
-                                  {renderLineWithMarkdown(line, false)}
-                                </p>
-                              )
-                            }
-                            return <br key={index} />
-                          })}
+                          {renderFormattedAIContent(message.content, fontStyles)}
                         </div>
                       )
                     ) : (

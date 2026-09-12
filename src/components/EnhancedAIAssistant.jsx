@@ -12,6 +12,7 @@ import { historyService } from '../services/historyService'
 // NEW IMPORTS - Feature 1 & 2
 import { VoiceEmotionAnalyzer } from '../services/voiceEmotionAnalyzer'
 import VoiceAnalyticsIndicator from './VoiceAnalyticsIndicator'
+import { renderFormattedAIContent } from '../utils/aiMarkdownFormatter'
 import { getOfflineAI } from '../services/offlineAILite'
 import { storeDoubtOffline } from '../services/offlineDoubtStorage'
 import OfflineDoubtsPanel from './OfflineDoubtsPanel'
@@ -552,12 +553,7 @@ const EnhancedAIAssistant = () => {
                       </div>
                     )}
                     <div style={{ fontSize: 14, lineHeight: 1.65 }}>
-                      {message.content.split('\n').map((line, i) => {
-                        if (line.startsWith('**') && line.endsWith('**')) return <div key={i} style={{ fontWeight: 800, fontSize: 15, marginTop: 10, marginBottom: 4 }}>{line.replace(/\*\*/g, '')}</div>
-                        if (line.trim().startsWith('•') || line.trim().startsWith('-')) return <div key={i} style={{ paddingLeft: 12, marginBottom: 2 }}>· {line.replace(/^[•-]\s*/, '')}</div>
-                        if (line.trim()) return <p key={i} style={{ margin: '4px 0' }}>{line}</p>
-                        return <br key={i} />
-                      })}
+                      {renderFormattedAIContent(message.content)}
                     </div>
                   </div>
                 </div>

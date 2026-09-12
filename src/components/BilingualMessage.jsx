@@ -1,17 +1,18 @@
-import React from 'react';
+import React from 'react'
+import { renderFormattedAIContent } from '../utils/aiMarkdownFormatter'
 
 /**
  * BilingualMessage Component
- * Render english text only, completely disabling bilingual selectors/toggles
+ * Renders cleanly formatted text with zero raw asterisks
  */
 const BilingualMessage = ({ englishText, className = '' }) => {
   return (
     <div className={`bilingual-message ${className}`}>
-      <div className="text-gray-800 leading-relaxed whitespace-pre-wrap">
-        {englishText}
+      <div className="text-gray-800 leading-relaxed">
+        {renderFormattedAIContent(englishText)}
       </div>
     </div>
-  );
-};
+  )
+}
 
-export default BilingualMessage;
+export default BilingualMessage
