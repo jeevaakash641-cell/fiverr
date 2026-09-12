@@ -888,29 +888,6 @@ const AIAssistant = () => {
                 {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
               </button>
               
-              {/* Recents Toggle Button */}
-              <button
-                onClick={() => setShowRecentsSidebar(!showRecentsSidebar)}
-                className={`flex items-center space-x-1.5 px-3 py-2 rounded-lg transition-colors border text-sm font-semibold shadow-xs cursor-pointer ${
-                  showRecentsSidebar 
-                    ? 'bg-gray-900 text-white border-gray-900' 
-                    : 'bg-white text-gray-700 hover:bg-gray-100 border-gray-200'
-                }`}
-                title="Toggle Recent Chats Sidebar"
-              >
-                <MessageSquare className="h-4 w-4 text-sky-400" />
-                <span className="hidden sm:inline">Recents</span>
-              </button>
-
-              <Link
-                to="/ai-history"
-                className="flex items-center space-x-2 px-3 md:px-4 py-2 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg transition-colors border border-blue-200 text-sm font-semibold shadow-xs"
-                title="View AI Chat History"
-              >
-                <Clock className="h-4 w-4 md:h-5 md:w-5" />
-                <span className="hidden sm:inline">AI History</span>
-              </Link>
-              
               <button
                 onClick={() => setShowNotes(!showNotes)}
                 className={`flex items-center space-x-2 px-3 md:px-4 py-2 rounded-lg transition-colors border text-sm font-semibold shadow-xs cursor-pointer ${
