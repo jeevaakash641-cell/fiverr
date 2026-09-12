@@ -14,11 +14,11 @@ const MIN_CONFIDENCE = 0.85;
 
 /**
  * POST /api/chat
- * Main chat endpoint with translation and AI response
+ * Main chat endpoint with translation, context grounding, and multi-turn AI response
  */
 router.post('/', async (req, res) => {
   try {
-    const { message, userId } = req.body;
+    const { message, userId, context, history } = req.body;
     
     if (!message || !userId) {
       return res.status(400).json({ error: 'Missing required fields', message: 'Both message and userId are required' });
@@ -44,8 +44,11 @@ router.post('/', async (req, res) => {
       console.log(`🔄 Translated to English: ${translatedMessage}`);
     }
 
-    // Step 3: Get AI response
-    const aiResponseEnglish = await getBedrockResponse(translatedMessage);
+    // Step 3: Get AI response with context & history
+    const aiResponseEnglish = await getBedrockResponse(translatedMessage, {
+      context: context || null,
+      history: Array.isArray(history) ? history : []
+    });
 
     // Step 4: Translate response back only if we translated the input
     let finalResponse = aiResponseEnglish;

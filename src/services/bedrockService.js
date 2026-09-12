@@ -5,13 +5,21 @@ const BACKEND_API_URL = `${API_BASE_URL}/api`;
 
 /**
  * Fast AI response — skips language detection & translation.
- * Use this for all English prompts (math, subject help, etc.)
+ * Accepts userMessage, context object, history array, and custom system prompt.
  */
-export const getBedrockResponse = async (userMessage, userContext = null) => {
+export const getBedrockResponse = async (userMessage, options = {}) => {
   try {
-    const response = await axios.post(`${BACKEND_API_URL}/ai/ask`, {
-      message: userMessage,
-    });
+    const payload = typeof options === 'string' 
+      ? { message: userMessage, userContext: options }
+      : {
+          message: userMessage,
+          context: options.context || options.userContext || null,
+          history: options.history || [],
+          systemPrompt: options.systemPrompt || null,
+          maxTokens: options.maxTokens || 1500
+        };
+
+    const response = await axios.post(`${BACKEND_API_URL}/ai/ask`, payload);
 
     if (response.data.success) {
       return response.data.response;
@@ -28,15 +36,18 @@ export const getBedrockResponse = async (userMessage, userContext = null) => {
 };
 
 /**
- * AI response with automatic language translation.
- * Use this when the user may be typing in a regional language.
+ * AI response with automatic language translation and multi-turn context support.
  */
-export const getBedrockResponseWithTranslation = async (userMessage, userId = 'anonymous') => {
+export const getBedrockResponseWithTranslation = async (userMessage, userId = 'anonymous', options = {}) => {
   try {
-    const response = await axios.post(`${BACKEND_API_URL}/chat`, {
+    const payload = {
       message: userMessage,
       userId,
-    });
+      context: options.context || null,
+      history: options.history || []
+    };
+
+    const response = await axios.post(`${BACKEND_API_URL}/chat`, payload);
 
     if (response.data.success) {
       return {

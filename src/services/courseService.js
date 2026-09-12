@@ -85,6 +85,9 @@ export async function fetchPublishedCourses(filters = {}) {
   }
 }
 
+export const fetchCourses = fetchPublishedCourses;
+export const getCourses = fetchPublishedCourses;
+
 /**
  * Fetch single course by courseId
  */

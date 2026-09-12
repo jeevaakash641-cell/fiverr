@@ -35,9 +35,15 @@ class ErrorBoundary extends React.Component {
 
   handleClearCache = async () => {
     try {
-      // Clear everything
+      // Preserve authentication keys before clearing cache
+      const authUser = localStorage.getItem('user') || localStorage.getItem('auth_user')
+      const authToken = localStorage.getItem('token') || localStorage.getItem('authToken')
+      
       localStorage.clear()
       sessionStorage.clear()
+      
+      if (authUser) localStorage.setItem('user', authUser)
+      if (authToken) localStorage.setItem('token', authToken)
       
       if ('caches' in window) {
         const names = await caches.keys()
@@ -49,8 +55,8 @@ class ErrorBoundary extends React.Component {
         await Promise.all(regs.map(r => r.unregister()))
       }
       
-      // Reload
-      window.location.href = '/'
+      // Reload safely
+      window.location.reload()
     } catch (error) {
       console.error('Clear cache error:', error)
       window.location.reload()

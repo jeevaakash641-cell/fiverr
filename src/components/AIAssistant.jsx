@@ -1,15 +1,16 @@
-import React, { useState, useRef, useEffect } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import React, { useState, useRef, useEffect, useMemo } from 'react'
+import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { 
   ArrowLeft, Send, Mic, Image, Youtube, BookOpen, Loader, 
   StickyNote, Clock, Volume2, VolumeX, Search, Filter, 
   Book, Sparkles, Copy, Check, RefreshCw, Plus, Paperclip, 
   FileText, X, Video, ExternalLink, Maximize2, Minimize2,
-  Sliders, Type, ZoomIn, ZoomOut
+  Sliders, Type, ZoomIn, ZoomOut, CheckCircle2, ChevronRight
 } from 'lucide-react'
 import { getBedrockResponse, getBedrockResponseWithTranslation } from '../services/bedrockService'
 import { VoiceRecognitionService, getLanguageCode } from '../services/voiceService'
+import { fetchCourses } from '../services/courseService'
 import NotesPanel from './NotesPanel'
 import SubjectHelper from './SubjectHelper'
 import { historyService } from '../services/historyService'
@@ -19,6 +20,7 @@ import BilingualMessage from './BilingualMessage'
 const AIAssistant = () => {
   const { user } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
   const { getBilingual } = useBilingualAI()
   
   const [messages, setMessages] = useState([])
@@ -29,6 +31,11 @@ const AIAssistant = () => {
   const [voiceError, setVoiceError] = useState(null)
   const [showNotes, setShowNotes] = useState(false)
   const [copiedId, setCopiedId] = useState(null)
+
+  // Course & Curriculum Context for AI Grounding
+  const [coursesList, setCoursesList] = useState([])
+  const [selectedCourseId, setSelectedCourseId] = useState(() => location.state?.courseId || '')
+  const [selectedLessonTitle, setSelectedLessonTitle] = useState(() => location.state?.lessonTitle || '')
   
   // Resize & Appearance States
   const [fontSize, setFontSize] = useState(() => {
@@ -163,10 +170,32 @@ const AIAssistant = () => {
       {
         id: Date.now(),
         type: 'ai',
-        content: `Hello ${user.name || 'Student'}! 👋 I am your One Community Ely AI Learning Assistant. You can ask me any questions about work and life skills, digital skills, money management, and your courses. Feel free to type, use voice dictation, or upload questions!`
+        content: `Hello ${user.name || 'Learner'}! 👋 I am your One Community Ely AI Learning Assistant in Ely, Cardiff. You can ask me questions about your courses, employability, practical digital skills, and community topics. Feel free to type, use voice dictation, or upload questions!`
       }
     ])
   }, [user, navigate])
+
+  // Load Courses for Context Grounding
+  useEffect(() => {
+    fetchCourses()
+      .then(courses => {
+        if (Array.isArray(courses)) setCoursesList(courses)
+      })
+      .catch(err => console.warn('Could not load courses for AI Assistant context:', err))
+  }, [])
+
+  // Derived Active Context
+  const activeContext = useMemo(() => {
+    if (!selectedCourseId) return null
+    const found = coursesList.find(c => (c.courseId || c.id) === selectedCourseId)
+    if (!found) return null
+    return {
+      courseId: selectedCourseId,
+      courseTitle: found.title || found.name || '',
+      lessonTitle: selectedLessonTitle || '',
+      learningOutcomes: found.learningOutcomes || found.outcomes || []
+    }
+  }, [selectedCourseId, selectedLessonTitle, coursesList])
 
   // Scroll to bottom on new messages
   useEffect(() => {
@@ -332,9 +361,20 @@ const AIAssistant = () => {
       }
 
       const motherTongue = user.mediumName || 'English'
+      
+      // Multi-turn history: send previous conversation turns (up to 8 turns)
+      const historyPayload = messages.slice(-8).map(m => ({
+        role: m.type === 'user' ? 'user' : 'assistant',
+        content: m.content
+      }))
+
       const result = await getBedrockResponseWithTranslation(
         promptText,
-        user?.email || user?.id || 'anonymous'
+        user?.email || user?.id || 'anonymous',
+        {
+          context: activeContext,
+          history: historyPayload
+        }
       )
 
       // getBedrockResponseWithTranslation returns { response, language, sessionId }
@@ -655,8 +695,42 @@ const AIAssistant = () => {
       </header>
 
       <main className={`container mx-auto px-2 sm:px-4 md:px-6 py-4 flex-1 flex flex-col transition-all duration-200 ${containerMaxWidth}`}>
+        {/* Course Context & Grounding Selector */}
+        {!isFullscreen && (
+          <div className="bg-white rounded-xl shadow-xs border border-gray-200 p-2.5 mb-3 flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <BookOpen className="h-4 w-4 text-emerald-700" />
+              <span className="text-xs font-bold text-gray-700">Course / Topic Focus:</span>
+              <select
+                value={selectedCourseId}
+                onChange={(e) => setSelectedCourseId(e.target.value)}
+                className="text-xs bg-gray-50 border border-gray-300 rounded-lg px-2.5 py-1.5 text-gray-800 font-medium focus:ring-2 focus:ring-emerald-500 outline-none max-w-xs md:max-w-md"
+              >
+                <option value="">General Community & Life Skills (Ely, Cardiff)</option>
+                {coursesList.map((c) => (
+                  <option key={c.courseId || c.id} value={c.courseId || c.id}>
+                    {c.title || c.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {selectedCourseId && (
+              <div className="flex items-center gap-1.5 text-xs text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
+                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                <span className="font-semibold">AI Grounded: Responses customized for this syllabus</span>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Quick Tips Helper Bar (Hidden in Fullscreen for maximum workspace) */}
-        {!isFullscreen && <SubjectHelper onQuestionSelect={(q) => handleSendMessage(q)} />}
+        {!isFullscreen && (
+          <SubjectHelper
+            onQuestionSelect={(q) => handleSendMessage(q)}
+            activeContext={activeContext}
+          />
+        )}
 
         {/* Main Chat & Notes Area */}
         <div className={`grid ${showNotes ? 'grid-cols-1 lg:grid-cols-3' : 'grid-cols-1'} gap-4 flex-1 h-full`}>

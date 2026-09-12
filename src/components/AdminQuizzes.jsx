@@ -108,7 +108,8 @@ const AdminQuizzes = () => {
       navigate('/login')
       return
     }
-    if (user.userType !== 'teacher') {
+    const isAuthorized = user.userType === 'teacher' || user.role === 'admin' || user.userType === 'admin' || user.email === 'admin@ely.org.uk' || (user.email && user.email.includes('admin'))
+    if (!isAuthorized) {
       navigate('/dashboard')
       return
     }

@@ -317,7 +317,7 @@ const PrintableImpactReport = () => {
                   <td className="px-2 py-2 text-center font-semibold text-gray-800">
                     {r.attendanceCount !== null && r.attendanceCount !== undefined ? r.attendanceCount : '—'}
                   </td>
-                  <td className="px-2 py-2 text-gray-600">{r.location || 'Ely, Cambridgeshire'}</td>
+                  <td className="px-2 py-2 text-gray-600">{r.location || 'Ely, Cardiff, Wales (CF5)'}</td>
                 </tr>
               ))}
             </tbody>

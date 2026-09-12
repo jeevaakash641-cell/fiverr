@@ -156,7 +156,7 @@ const LearnerCertificateView = () => {
 
         ctx.fillStyle = '#6B7280';
         ctx.font = '20px Inter, sans-serif';
-        ctx.fillText('Empowering Adult Community Learning in Cambridgeshire', canvas.width / 2, 168);
+        ctx.fillText('Empowering Adult Community Learning in Ely, Cardiff, Wales (CF5)', canvas.width / 2, 168);
 
         // Title
         ctx.fillStyle = '#111827';
@@ -540,7 +540,7 @@ const LearnerCertificateView = () => {
                 One Community Ely Online Training Centre
               </p>
               <p className="text-[11px] text-gray-500 font-medium">
-                Empowering Adult Community Learning in Cambridgeshire
+                Empowering Adult Community Learning in Ely, Cardiff, Wales (CF5)
               </p>
             </div>
 

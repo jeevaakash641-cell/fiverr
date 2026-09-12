@@ -244,7 +244,7 @@ const LearnerBeneficiaryFeedback = () => {
             </h1>
 
             <p className="text-xs text-gray-600 leading-relaxed max-w-md mx-auto">
-              Your feedback will help One Community Ely improve future training and support more community members across Cambridgeshire.
+              Your feedback will help One Community Ely improve future training and support more community members across Ely, Cardiff, Wales.
             </p>
 
             <div className="p-4 rounded-xl bg-gray-50 border border-gray-100 text-left space-y-2 text-xs">

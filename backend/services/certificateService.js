@@ -488,7 +488,7 @@ export async function generateCertificatePDF(certData) {
       doc.fontSize(9)
         .font('Helvetica')
         .fillColor('#6B7280')
-        .text('Empowering Adult Community Learning in Cambridgeshire', 40, 68, {
+        .text('Empowering Adult Community Learning in Ely, Cardiff, Wales (CF5)', 40, 68, {
           align: 'center'
         });
 

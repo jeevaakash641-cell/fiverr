@@ -681,7 +681,7 @@ export async function generateAIQuizDraft(params, createdByEmail = 'admin') {
 
   // Run batches concurrently for maximum performance
   const batchPromises = batches.map(async (batchCount, bIdx) => {
-    const prompt = `You are an expert UK adult-education training designer for One Community Ely.
+    const prompt = `You are an expert UK adult-education training designer for the One Community Ely Training Centre in Ely, Cardiff, Wales (CF5).
 Generate a high-quality ${batchCount}-question ${diff} difficulty quiz (Batch ${bIdx + 1} of ${batches.length}) to evaluate adult learners on the following course material:
 
 === CONTEXT ===

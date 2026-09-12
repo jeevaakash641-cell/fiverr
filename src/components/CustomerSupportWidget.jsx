@@ -78,7 +78,7 @@ const FAQ_KNOWLEDGE_BASE = {
     summary: 'Our friendly One Community Ely support team is here to assist you:',
     steps: [
       '• **Email Support**: support@onecommunityely.com / admin@onecommunityely.com',
-      '• **Training Centre**: One Community Ely CIC, Cambridgeshire, UK',
+      '• **Training Centre**: One Community Ely CIC, Ely, Cardiff, Wales (CF5), UK',
       '• **Operating Hours**: Monday – Friday, 9:00 AM – 5:00 PM GMT',
       '• **Instant Chat**: You can also ask any question directly in this chat box!'
     ]
