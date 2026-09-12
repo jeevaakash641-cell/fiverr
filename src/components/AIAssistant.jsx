@@ -50,7 +50,7 @@ const AIAssistant = () => {
     timestamp: new Date().toISOString()
   })
 
-  // Load persisted sessions or seed default learning sessions
+  // Load persisted sessions or initialize fresh conversation (filtering out legacy seed sessions)
   const [sessions, setSessions] = useState(() => {
     try {
       const userKey = user?.id || user?.email || 'default'
@@ -58,7 +58,10 @@ const AIAssistant = () => {
       if (saved) {
         const parsed = JSON.parse(saved)
         if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed
+          const cleaned = parsed.filter(s => s && !s.id?.startsWith('session_seed_'))
+          if (cleaned.length > 0) {
+            return cleaned
+          }
         }
       }
     } catch (e) {
@@ -78,63 +81,6 @@ const AIAssistant = () => {
             id: Date.now(),
             type: 'ai',
             content: `Hello ${user?.name || 'Learner'}! 👋 I am your One Community Ely AI Learning Assistant in Ely, Cardiff. You can ask me questions about your courses, employability, practical digital skills, and community topics. Feel free to type, use voice dictation, or upload questions!`
-          }
-        ]
-      },
-      {
-        id: `session_seed_1`,
-        title: 'Fix Lesson Editor Crash',
-        createdAt: new Date(Date.now() - 3600000).toISOString(),
-        updatedAt: new Date(Date.now() - 3600000).toISOString(),
-        courseId: '',
-        messages: [
-          {
-            id: 101,
-            type: 'user',
-            content: 'How do we fix the lesson editor crash when pasting rich text content?'
-          },
-          {
-            id: 102,
-            type: 'ai',
-            content: 'The lesson editor crash occurs when accessing innerHTML on unmounted DOM nodes. We resolve this by sanitizing pasted content through DOMParser with an allowed-tag whitelist and wrapping the editor inside a React Error Boundary.'
-          }
-        ]
-      },
-      {
-        id: `session_seed_2`,
-        title: 'Solar agarbatti dryer design',
-        createdAt: new Date(Date.now() - 86400000).toISOString(),
-        updatedAt: new Date(Date.now() - 86400000).toISOString(),
-        courseId: '',
-        messages: [
-          {
-            id: 103,
-            type: 'user',
-            content: 'Explain the principles of a solar agarbatti dryer design.'
-          },
-          {
-            id: 104,
-            type: 'ai',
-            content: 'A solar agarbatti dryer uses indirect solar thermal radiation and natural convection airflow through perforated mesh trays to gently evaporate moisture without degrading fragrance oils or bending the sticks.'
-          }
-        ]
-      },
-      {
-        id: `session_seed_3`,
-        title: 'How to Run a Market Stall',
-        createdAt: new Date(Date.now() - 172800000).toISOString(),
-        updatedAt: new Date(Date.now() - 172800000).toISOString(),
-        courseId: '',
-        messages: [
-          {
-            id: 105,
-            type: 'user',
-            content: 'What are the first steps to set up a community market stall in Ely, Cardiff?'
-          },
-          {
-            id: 106,
-            type: 'ai',
-            content: 'First, coordinate with the Ely community market coordinator to verify pitch allocations, ensure your canopy weights meet local council safety standards, and display your trader permit visibly.'
           }
         ]
       }
@@ -279,6 +225,79 @@ const AIAssistant = () => {
       navigate('/login')
     }
   }, [user, navigate])
+
+  // Purge legacy seed sessions from all localStorage entries on mount
+  useEffect(() => {
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i)
+          if (key && key.startsWith('ai_sessions_')) {
+            const val = localStorage.getItem(key)
+            if (val && val.includes('session_seed_')) {
+              try {
+                const parsed = JSON.parse(val)
+                if (Array.isArray(parsed)) {
+                  const cleaned = parsed.filter(s => s && !s.id?.startsWith('session_seed_'))
+                  if (cleaned.length > 0) {
+                    localStorage.setItem(key, JSON.stringify(cleaned))
+                  } else {
+                    localStorage.removeItem(key)
+                  }
+                }
+              } catch (err) {
+                // ignore
+              }
+            }
+          }
+        }
+      }
+    } catch (e) {
+      // ignore
+    }
+  }, [])
+
+  // Sync sessions state when active user changes
+  useEffect(() => {
+    if (!user) return
+    try {
+      const userKey = user?.id || user?.email || 'default'
+      const saved = localStorage.getItem(`ai_sessions_${userKey}`)
+      if (saved) {
+        const parsed = JSON.parse(saved)
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const cleaned = parsed.filter(s => s && !s.id?.startsWith('session_seed_'))
+          if (cleaned.length > 0) {
+            setSessions(cleaned)
+            setActiveSessionId(cleaned[0].id)
+            return
+          }
+        }
+      }
+      // Fresh conversation for new login
+      const freshId = `session_${Date.now()}`
+      const freshSession = [
+        {
+          id: freshId,
+          title: 'New AI Conversation',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          courseId: location.state?.courseId || '',
+          messages: [
+            {
+              id: Date.now(),
+              type: 'ai',
+              content: `Hello ${user?.name || 'Learner'}! 👋 I am your One Community Ely AI Learning Assistant in Ely, Cardiff. You can ask me questions about your courses, employability, practical digital skills, and community topics. Feel free to type, use voice dictation, or upload questions!`
+            }
+          ]
+        }
+      ]
+      setSessions(freshSession)
+      setActiveSessionId(freshId)
+    } catch (e) {
+      console.warn('Failed to sync user AI sessions:', e)
+    }
+  }, [user?.id, user?.email])
 
   // Save sessions to localStorage whenever sessions change
   useEffect(() => {
