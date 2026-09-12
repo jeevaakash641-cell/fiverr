@@ -298,9 +298,13 @@ const AdminCourseBuilder = () => {
   }
 
   // --- Lesson Draft Helpers ---
+  const currentDraftSessionId = useRef(`draft_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`)
+
   const getDraftKey = (moduleId, lessonId) => {
     const userIdentifier = user?.email || user?.id || 'admin'
-    return `lesson_draft_${userIdentifier}_${courseId}_${moduleId || 'mod'}_${lessonId || 'new'}`
+    // If editing existing lesson, key by lessonId. If creating new, key by moduleId + session/new
+    const itemKey = lessonId || `new_${moduleId}`
+    return `lesson_draft_${userIdentifier}_${courseId}_${moduleId || 'mod'}_${itemKey}`
   }
 
   const checkForDraft = (mod, lesson = null) => {
@@ -315,7 +319,7 @@ const AdminCourseBuilder = () => {
         }
       }
     } catch (e) {
-      console.warn('Failed to read draft:', e)
+      console.warn('Failed to read draft from storage:', e)
     }
     setPendingDraft(null)
   }
@@ -333,24 +337,28 @@ const AdminCourseBuilder = () => {
       })
       setLessonDirty(true)
       const timeStr = pendingDraft.timestamp ? new Date(pendingDraft.timestamp).toLocaleTimeString() : ''
-      setDraftStatus(`Restored unsaved draft${timeStr ? ` from ${timeStr}` : ''}`)
+      setDraftStatus(`Restored local draft${timeStr ? ` from ${timeStr}` : ''}`)
       setPendingDraft(null)
     }
   }
 
   const handleDiscardDraft = () => {
     if (pendingDraft && pendingDraft.key) {
-      localStorage.removeItem(pendingDraft.key)
+      try {
+        localStorage.removeItem(pendingDraft.key)
+      } catch (e) {
+        console.warn('Failed to remove draft:', e)
+      }
     }
     setPendingDraft(null)
     setDraftStatus('')
   }
 
-  // Debounced draft autosave effect
+  // Debounced draft autosave effect (graceful fallback if storage fails)
   useEffect(() => {
     if (!isLessonModalOpen || !targetModuleForLesson || !lessonDirty) return
 
-    setDraftStatus('Saving draft...')
+    setDraftStatus('Saving draft locally...')
     const timer = setTimeout(() => {
       try {
         const key = getDraftKey(targetModuleForLesson.moduleId, editingLesson?.lessonId)
@@ -359,10 +367,10 @@ const AdminCourseBuilder = () => {
           _savedAt: new Date().toISOString()
         }
         localStorage.setItem(key, JSON.stringify(draftPayload))
-        setDraftStatus(`Draft saved at ${new Date().toLocaleTimeString()}`)
+        setDraftStatus(`Saved on this device (Draft at ${new Date().toLocaleTimeString()})`)
       } catch (err) {
-        console.warn('Draft autosave error:', err)
-        setDraftStatus('Draft save failed')
+        console.warn('Draft local storage error (e.g. storage full or restricted):', err)
+        setDraftStatus('Save failed (Local storage unavailable)')
       }
     }, 600)
 
