@@ -1,8 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { 
   Plus, MoreHorizontal, MessageSquare, Trash2, Edit3, 
-  Search, Check, X, Clock, ChevronLeft, ChevronRight,
-  Download
+  Search, Check, X, Clock, ChevronLeft, Download
 } from 'lucide-react'
 
 const AIRecentChatsSidebar = ({
@@ -88,13 +87,13 @@ const AIRecentChatsSidebar = ({
   }
 
   return (
-    <aside className="w-64 md:w-72 bg-[#0c1017] text-gray-200 rounded-2xl flex flex-col border border-gray-800 shadow-xl overflow-hidden flex-shrink-0 h-[calc(100vh-230px)] min-h-[520px] transition-all duration-200 select-none">
+    <aside className="w-64 md:w-72 bg-white text-gray-800 rounded-2xl flex flex-col border border-gray-200 shadow-sm overflow-hidden flex-shrink-0 h-[calc(100vh-230px)] min-h-[520px] transition-all duration-200 select-none">
       {/* Top Action Bar */}
-      <div className="p-3 border-b border-gray-800/80 flex items-center justify-between gap-2 bg-[#090d14]">
+      <div className="p-3 border-b border-gray-100 flex items-center justify-between gap-2 bg-gray-50/70">
         {/* + New Chat Button */}
         <button
           onClick={onNewChat}
-          className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-bold shadow-md transition-all cursor-pointer group"
+          className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold shadow-xs transition-all cursor-pointer group"
           title="Start a new conversation"
         >
           <Plus className="h-4 w-4 group-hover:rotate-90 transition-transform duration-200" />
@@ -105,32 +104,32 @@ const AIRecentChatsSidebar = ({
         <div className="relative" ref={moreMenuRef}>
           <button
             onClick={() => setShowMoreMenu(!showMoreMenu)}
-            className="flex items-center justify-center p-2 text-gray-400 hover:text-white hover:bg-gray-800/80 rounded-xl transition-colors cursor-pointer border border-transparent hover:border-gray-700"
+            className="flex items-center justify-center p-2 text-gray-500 hover:text-gray-800 hover:bg-gray-100 rounded-xl transition-colors cursor-pointer border border-gray-200"
             title="More Options"
           >
             <MoreHorizontal className="h-4 w-4" />
           </button>
 
           {showMoreMenu && (
-            <div className="absolute right-0 top-full mt-1.5 w-48 bg-[#161b22] border border-gray-700 rounded-xl shadow-2xl py-1 z-50 text-xs text-gray-200 animate-in fade-in zoom-in-95">
+            <div className="absolute right-0 top-full mt-1.5 w-48 bg-white border border-gray-200 rounded-xl shadow-xl py-1 z-50 text-xs text-gray-800 animate-in fade-in zoom-in-95">
               <button
                 onClick={() => {
                   setShowMoreMenu(false)
                   onNewChat()
                 }}
-                className="w-full px-3 py-2 text-left hover:bg-gray-800 flex items-center gap-2 cursor-pointer"
+                className="w-full px-3 py-2 text-left hover:bg-emerald-50 hover:text-emerald-900 flex items-center gap-2 cursor-pointer font-medium"
               >
-                <Plus className="h-3.5 w-3.5 text-emerald-400" />
+                <Plus className="h-3.5 w-3.5 text-emerald-700" />
                 <span>New Conversation</span>
               </button>
               <button
                 onClick={exportAllChats}
-                className="w-full px-3 py-2 text-left hover:bg-gray-800 flex items-center gap-2 cursor-pointer"
+                className="w-full px-3 py-2 text-left hover:bg-emerald-50 hover:text-emerald-900 flex items-center gap-2 cursor-pointer font-medium"
               >
-                <Download className="h-3.5 w-3.5 text-sky-400" />
+                <Download className="h-3.5 w-3.5 text-emerald-700" />
                 <span>Export All Chats</span>
               </button>
-              <div className="my-1 border-t border-gray-700/80" />
+              <div className="my-1 border-t border-gray-100" />
               <button
                 onClick={() => {
                   setShowMoreMenu(false)
@@ -138,7 +137,7 @@ const AIRecentChatsSidebar = ({
                     onClearAll()
                   }
                 }}
-                className="w-full px-3 py-2 text-left text-red-400 hover:bg-red-950/40 flex items-center gap-2 cursor-pointer"
+                className="w-full px-3 py-2 text-left text-red-600 hover:bg-red-50 flex items-center gap-2 cursor-pointer font-medium"
               >
                 <Trash2 className="h-3.5 w-3.5" />
                 <span>Clear All History</span>
@@ -150,7 +149,7 @@ const AIRecentChatsSidebar = ({
         {/* Collapse Sidebar Button */}
         <button
           onClick={onToggle}
-          className="p-2 text-gray-400 hover:text-white hover:bg-gray-800/80 rounded-xl transition-colors cursor-pointer"
+          className="p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-xl transition-colors cursor-pointer border border-transparent hover:border-gray-200"
           title="Collapse Recents"
         >
           <ChevronLeft className="h-4 w-4" />
@@ -160,11 +159,11 @@ const AIRecentChatsSidebar = ({
       {/* Recents Section Header & Search */}
       <div className="px-3.5 pt-3 pb-2 flex flex-col gap-2">
         <div className="flex items-center justify-between">
-          <span className="text-sky-400 font-bold text-xs tracking-wider uppercase flex items-center gap-1.5">
-            <Clock className="h-3.5 w-3.5 text-sky-400" />
+          <span className="text-emerald-800 font-bold text-xs tracking-wider uppercase flex items-center gap-1.5">
+            <Clock className="h-3.5 w-3.5 text-emerald-700" />
             <span>Recents</span>
           </span>
-          <span className="text-[10px] text-gray-400 bg-gray-800/80 px-1.5 py-0.5 rounded-full font-mono">
+          <span className="text-[10px] text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full font-semibold">
             {filteredSessions.length}
           </span>
         </div>
@@ -177,12 +176,12 @@ const AIRecentChatsSidebar = ({
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search recent chats..."
-            className="w-full bg-[#161b22] border border-gray-800 text-xs text-gray-200 placeholder-gray-400 rounded-lg pl-8 pr-2.5 py-1.5 focus:outline-none focus:border-sky-500 transition-colors"
+            className="w-full bg-gray-50 border border-gray-200 text-xs text-gray-900 placeholder-gray-400 rounded-xl pl-8 pr-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-600 focus:bg-white transition-all"
           />
           {searchQuery && (
             <button
               onClick={() => setSearchQuery('')}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700"
             >
               <X className="h-3 w-3" />
             </button>
@@ -191,15 +190,15 @@ const AIRecentChatsSidebar = ({
       </div>
 
       {/* Conversations List */}
-      <div className="flex-1 overflow-y-auto px-2 py-1 space-y-1 scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-transparent">
+      <div className="flex-1 overflow-y-auto px-2 py-1 space-y-1 scrollbar-thin scrollbar-thumb-gray-200 scrollbar-track-transparent">
         {filteredSessions.length === 0 ? (
           <div className="p-4 text-center text-xs text-gray-400 space-y-2">
-            <MessageSquare className="h-8 w-8 mx-auto text-gray-700 stroke-1" />
+            <MessageSquare className="h-8 w-8 mx-auto text-gray-300 stroke-1" />
             <p>{searchQuery ? 'No matching chats found' : 'No recent chats yet.'}</p>
             {!searchQuery && (
               <button
                 onClick={onNewChat}
-                className="text-emerald-400 hover:underline text-xs font-semibold cursor-pointer"
+                className="text-emerald-700 hover:underline text-xs font-semibold cursor-pointer"
               >
                 Start your first chat
               </button>
@@ -214,7 +213,7 @@ const AIRecentChatsSidebar = ({
               return (
                 <div
                   key={session.id}
-                  className="p-1.5 bg-gray-800 rounded-xl border border-sky-500/50 flex items-center gap-1.5"
+                  className="p-1.5 bg-white rounded-xl border border-emerald-500 flex items-center gap-1.5 shadow-xs"
                 >
                   <input
                     type="text"
@@ -225,18 +224,18 @@ const AIRecentChatsSidebar = ({
                       if (e.key === 'Escape') handleCancelRename(e)
                     }}
                     autoFocus
-                    className="flex-1 bg-transparent text-xs text-white px-2 py-1 border-none focus:outline-none"
+                    className="flex-1 bg-transparent text-xs text-gray-900 px-2 py-1 border-none focus:outline-none font-medium"
                   />
                   <button
                     onClick={(e) => handleSaveRename(session.id, e)}
-                    className="p-1 text-emerald-400 hover:bg-gray-700 rounded cursor-pointer"
+                    className="p-1 text-emerald-700 hover:bg-emerald-50 rounded cursor-pointer"
                     title="Save"
                   >
                     <Check className="h-3.5 w-3.5" />
                   </button>
                   <button
                     onClick={handleCancelRename}
-                    className="p-1 text-gray-400 hover:bg-gray-700 rounded cursor-pointer"
+                    className="p-1 text-gray-400 hover:bg-gray-100 rounded cursor-pointer"
                     title="Cancel"
                   >
                     <X className="h-3.5 w-3.5" />
@@ -249,10 +248,10 @@ const AIRecentChatsSidebar = ({
               <div
                 key={session.id}
                 onClick={() => onSelectSession(session.id)}
-                className={`group relative flex items-center justify-between px-3 py-2.5 rounded-xl cursor-pointer text-xs font-medium transition-all ${
+                className={`group relative flex items-center justify-between px-3 py-2.5 rounded-xl cursor-pointer text-xs transition-all ${
                   isActive
-                    ? 'bg-[#21262d] text-white shadow-sm font-semibold border-l-2 border-sky-400'
-                    : 'text-gray-300 hover:text-white hover:bg-[#161b22]'
+                    ? 'bg-emerald-50 text-emerald-950 font-bold border border-emerald-200/90 shadow-2xs'
+                    : 'text-gray-700 hover:text-gray-900 hover:bg-gray-50/80 font-medium'
                 }`}
                 title={session.title}
               >
@@ -261,7 +260,7 @@ const AIRecentChatsSidebar = ({
                     {session.title || 'Untitled Conversation'}
                   </p>
                   {session.updatedAt && (
-                    <span className="text-[10px] text-gray-400 block mt-0.5 truncate">
+                    <span className={`text-[10px] block mt-0.5 truncate ${isActive ? 'text-emerald-700/80' : 'text-gray-400'}`}>
                       {new Date(session.updatedAt).toLocaleDateString([], { month: 'short', day: 'numeric' })}
                     </span>
                   )}
@@ -271,14 +270,14 @@ const AIRecentChatsSidebar = ({
                 <div className={`items-center gap-1 ${isActive ? 'flex' : 'hidden group-hover:flex'}`}>
                   <button
                     onClick={(e) => startRename(session, e)}
-                    className="p-1 text-gray-400 hover:text-sky-300 hover:bg-gray-700/80 rounded transition-colors cursor-pointer"
+                    className="p-1 text-gray-400 hover:text-emerald-800 hover:bg-white/80 rounded transition-colors cursor-pointer"
                     title="Rename"
                   >
                     <Edit3 className="h-3 w-3" />
                   </button>
                   <button
                     onClick={(e) => handleDeleteClick(session.id, e)}
-                    className="p-1 text-gray-400 hover:text-red-400 hover:bg-gray-700/80 rounded transition-colors cursor-pointer"
+                    className="p-1 text-gray-400 hover:text-red-600 hover:bg-white/80 rounded transition-colors cursor-pointer"
                     title="Delete"
                   >
                     <Trash2 className="h-3 w-3" />
@@ -291,10 +290,10 @@ const AIRecentChatsSidebar = ({
       </div>
 
       {/* Footer info strip */}
-      <div className="p-2.5 border-t border-gray-800/80 bg-[#090d14] text-[10px] text-gray-400 flex items-center justify-between">
-        <span className="truncate">One Community Ely AI</span>
-        <span className="text-emerald-400 font-semibold flex items-center gap-1">
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+      <div className="p-2.5 border-t border-gray-100 bg-gray-50/80 text-[10px] text-gray-500 flex items-center justify-between">
+        <span className="truncate font-medium">One Community Ely AI</span>
+        <span className="text-emerald-700 font-semibold flex items-center gap-1">
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
           Ready
         </span>
       </div>
