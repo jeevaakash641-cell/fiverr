@@ -965,34 +965,33 @@ const AIAssistant = () => {
 
         {/* Main Workspace Area with Recent Chats Sidebar */}
         <div className="flex gap-3.5 flex-1 h-full items-start">
-          {!isFullscreen && (
-            <AIRecentChatsSidebar
-              sessions={sessions}
-              activeSessionId={activeSessionId}
-              onSelectSession={handleSelectSession}
-              onNewChat={handleNewChat}
-              onDeleteSession={handleDeleteSession}
-              onRenameSession={handleRenameSession}
-              onClearAll={handleClearAllSessions}
-              isOpen={showRecentsSidebar}
-              onToggle={() => setShowRecentsSidebar(!showRecentsSidebar)}
-            />
-          )}
+          <AIRecentChatsSidebar
+            sessions={sessions}
+            activeSessionId={activeSessionId}
+            onSelectSession={handleSelectSession}
+            onNewChat={handleNewChat}
+            onDeleteSession={handleDeleteSession}
+            onRenameSession={handleRenameSession}
+            onClearAll={handleClearAllSessions}
+            isOpen={showRecentsSidebar}
+            onToggle={() => setShowRecentsSidebar(!showRecentsSidebar)}
+            isFullscreen={isFullscreen}
+          />
 
           {/* Main Chat & Notes Area */}
           <div className={`grid ${showNotes ? 'grid-cols-1 lg:grid-cols-3' : 'grid-cols-1'} gap-4 flex-1 h-full min-w-0`}>
             {/* Chat Window */}
-            <div className={`${showNotes ? 'lg:col-span-2' : 'col-span-1'} bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col ${isFullscreen ? 'h-[calc(100vh-100px)]' : 'h-[calc(100vh-230px)] min-h-[520px]'}`}>
+            <div className={`${showNotes ? 'lg:col-span-2' : 'col-span-1'} bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col ${isFullscreen ? 'h-[calc(100vh-95px)]' : 'h-[calc(100vh-230px)] min-h-[520px]'}`}>
               {/* Header info strip inside chat container with Quick Controls */}
               <div className="px-4 md:px-5 py-2.5 border-b border-gray-200 bg-gray-50 flex items-center justify-between flex-shrink-0">
                 <div className="flex items-center gap-2">
-                  {!showRecentsSidebar && !isFullscreen && (
+                  {!showRecentsSidebar && (
                     <button
                       onClick={() => setShowRecentsSidebar(true)}
                       className="p-1 hover:bg-gray-200 rounded-lg text-gray-700 cursor-pointer mr-1 flex items-center gap-1 text-xs font-semibold"
                       title="Show Recent Chats"
                     >
-                      <PanelLeft className="h-4 w-4 text-sky-600" />
+                      <PanelLeft className="h-4 w-4 text-emerald-700" />
                       <span className="hidden sm:inline text-gray-600">Recents</span>
                     </button>
                   )}

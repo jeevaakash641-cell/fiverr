@@ -13,7 +13,8 @@ const AIRecentChatsSidebar = ({
   onRenameSession,
   onClearAll,
   isOpen,
-  onToggle
+  onToggle,
+  isFullscreen = false
 }) => {
   const [searchQuery, setSearchQuery] = useState('')
   const [showMoreMenu, setShowMoreMenu] = useState(false)
@@ -87,7 +88,9 @@ const AIRecentChatsSidebar = ({
   }
 
   return (
-    <aside className="w-64 md:w-72 bg-white text-gray-800 rounded-2xl flex flex-col border border-gray-200 shadow-sm overflow-hidden flex-shrink-0 h-[calc(100vh-230px)] min-h-[520px] transition-all duration-200 select-none">
+    <aside className={`w-64 md:w-72 bg-white text-gray-800 rounded-2xl flex flex-col border border-gray-200 shadow-sm overflow-hidden flex-shrink-0 ${
+      isFullscreen ? 'h-[calc(100vh-95px)]' : 'h-[calc(100vh-230px)] min-h-[520px]'
+    } transition-all duration-200 select-none`}>
       {/* Top Action Bar */}
       <div className="p-3 border-b border-gray-100 flex items-center justify-between gap-2 bg-gray-50/70">
         {/* + New Chat Button */}
